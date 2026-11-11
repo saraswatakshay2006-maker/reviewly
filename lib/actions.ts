@@ -23,6 +23,7 @@ export async function saveBusinessAction(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const category = String(formData.get("category") || "").trim();
   const address = String(formData.get("address") || "").trim();
+  const description = String(formData.get("description") || "").trim();
   const welcomeMessage = String(formData.get("welcomeMessage") || "").trim();
   const primaryColor = String(formData.get("primaryColor") || "#1A4BE0");
   const googleReviewUrl = String(formData.get("googleReviewUrl") || "").trim();
@@ -31,13 +32,16 @@ export async function saveBusinessAction(formData: FormData) {
 
   if (!name) throw new Error("Business name is required");
 
+  let activeSlug = slug;
   if (businessId) {
     const existing = await getBusinessById(businessId);
     if (existing && existing.organizationId === user.organizationId) {
+      activeSlug = existing.publicSlug;
       await updateBusiness(businessId, {
         name,
         category,
         address,
+        description,
         welcomeMessage,
         primaryColor,
         googleReviewUrl,
@@ -51,11 +55,12 @@ export async function saveBusinessAction(formData: FormData) {
         .replace(/[^a-z0-9]+/g, "")
         .slice(0, 24) ||
       "business";
+    activeSlug = finalSlug;
     const biz = await createBusiness(user.organizationId, {
       name,
       category,
       address,
-      description: "",
+      description,
       primaryColor,
       welcomeMessage,
       googleReviewUrl,
@@ -67,6 +72,7 @@ export async function saveBusinessAction(formData: FormData) {
   revalidatePath("/app");
   revalidatePath("/app/cards");
   revalidatePath("/app/settings");
+  if (activeSlug) revalidatePath(`/r/${activeSlug}`);
 }
 
 export async function createCardAction(formData: FormData) {

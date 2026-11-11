@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Business } from "@/lib/types";
 import { saveBusinessAction } from "@/lib/actions";
 import { getContrastInk, normalizeHex, rgbaFromHex } from "@/lib/color";
 import {
+  extractOpeningKey,
+  generateUniqueBusinessReview,
+  getHighlightOptions,
+} from "@/lib/reviewGenerator";
+import {
   ArrowUpRightIcon,
   CheckIcon,
   ExternalLinkIcon,
   GoogleGMark,
+  RefreshIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   StarIcon,
 } from "@/components/Icons";
 
@@ -46,6 +53,7 @@ export default function BusinessSettingsForm({
   const [category, setCategory] = useState(initial?.category || CATEGORIES[0]);
   const [slug, setSlug] = useState(initial?.publicSlug || "");
   const [address, setAddress] = useState(initial?.address || "");
+  const [description, setDescription] = useState(initial?.description || "");
   const [welcomeMessage, setWelcomeMessage] = useState(
     initial?.welcomeMessage || ""
   );
@@ -61,6 +69,47 @@ export default function BusinessSettingsForm({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const [sampleReview, setSampleReview] = useState("");
+  const seenSamplesRef = useRef<string[]>([]);
+  const seenOpeningsRef = useRef<string[]>([]);
+
+  const refreshSampleReview = (resetHistory = false) => {
+    if (resetHistory) {
+      seenSamplesRef.current = [];
+      seenOpeningsRef.current = [];
+    }
+    const res = generateUniqueBusinessReview({
+      businessName: name.trim() || "Your Business",
+      category,
+      address,
+      description,
+      rating: 5,
+      length: "medium",
+      avoidDrafts: seenSamplesRef.current,
+      avoidOpenings: seenOpeningsRef.current,
+    });
+    seenSamplesRef.current = [...seenSamplesRef.current.slice(-7), res.text];
+    seenOpeningsRef.current = [
+      ...seenOpeningsRef.current.slice(-7),
+      res.openingKey || extractOpeningKey(res.text),
+    ];
+    setSampleReview(res.text);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      refreshSampleReview(true);
+    }, 150);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, category, address, description]);
+
+  const detectedChips = getHighlightOptions({
+    businessName: name.trim() || "Your Business",
+    category,
+    description,
+  }).slice(0, 4);
 
   const autoGenerateSlug = () => {
     const generated =
@@ -174,7 +223,7 @@ export default function BusinessSettingsForm({
 
         <div>
           <label htmlFor="biz-address" className={label}>
-            Address (shown subtly below business title)
+            Address (shown subtly below business title &amp; used for local context)
           </label>
           <input
             id="biz-address"
@@ -184,6 +233,24 @@ export default function BusinessSettingsForm({
             onChange={(e) => setAddress(e.target.value)}
             placeholder="12 MG Road, Bengaluru"
           />
+        </div>
+
+        <div>
+          <label htmlFor="biz-description" className={label}>
+            Specialties, services &amp; keywords (helps auto-generate business-oriented reviews)
+          </label>
+          <textarea
+            id="biz-description"
+            className={`${field} resize-none`}
+            name="description"
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Strength training, cardio zone, personal coaching, evening batches"
+          />
+          <p className="text-[11px] text-ink-muted mt-1">
+            Separate highlights with commas — customers get quick topic chips and unique SEO-friendly starter reviews grounded in what your business actually offers.
+          </p>
         </div>
 
         <div>
@@ -238,15 +305,15 @@ export default function BusinessSettingsForm({
         </div>
 
         <div>
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1.5">
+          <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="biz-google" className="text-xs font-medium text-ink-secondary">
               Official Google write-a-review link
             </label>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowPlaceHelper((v) => !v)}
-                className="text-xs font-medium text-cobalt-600 hover:text-cobalt-700 whitespace-nowrap"
+                className="text-xs font-medium text-cobalt-600 hover:text-cobalt-700"
               >
                 {showPlaceHelper ? "Hide Place ID builder" : "Use Place ID"}
               </button>
@@ -255,7 +322,7 @@ export default function BusinessSettingsForm({
                   href={googleReviewUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-cobalt-600 hover:text-cobalt-700 whitespace-nowrap"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-cobalt-600 hover:text-cobalt-700"
                 >
                   <span>Test link</span>
                   <ExternalLinkIcon size={12} />
@@ -443,6 +510,42 @@ export default function BusinessSettingsForm({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Sample Auto-Generated Review Tester */}
+        <div className="rounded-card bg-white border border-black/[0.09] p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
+              <SparklesIcon size={14} className="text-cobalt-600" />
+              <span>Unique auto-review preview</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => refreshSampleReview(false)}
+              className="inline-flex items-center gap-1 text-xs font-medium text-cobalt-600 hover:text-cobalt-700"
+            >
+              <RefreshIcon size={12} />
+              <span>New variation</span>
+            </button>
+          </div>
+
+          <p className="rounded-lg bg-canvas border border-black/[0.06] p-3 text-xs text-ink-secondary leading-relaxed">
+            {sampleReview || "Generating a tailored review sample for this business…"}
+          </p>
+
+          <div className="flex flex-wrap gap-1.5">
+            {detectedChips.map((chip) => (
+              <span
+                key={chip}
+                className="rounded-full bg-surface-subtle border border-black/[0.07] px-2.5 py-0.5 text-[10px] font-medium text-ink-secondary"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-ink-muted leading-snug">
+            Each customer gets a fresh, editable draft built around your business name, category, location, and selected highlight chips.
+          </p>
         </div>
       </aside>
     </div>

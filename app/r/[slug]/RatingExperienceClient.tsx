@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { getContrastInk, normalizeHex } from "@/lib/color";
+import {
+  extractOpeningKey,
+  generateUniqueBusinessReview,
+  getHighlightOptions,
+  type ReviewLength,
+} from "@/lib/reviewGenerator";
 import {
   CheckIcon,
   ChevronDownIcon,
   CopyIcon,
   ExternalLinkIcon,
   GoogleGMark,
+  RefreshIcon,
   SparklesIcon,
   StarIcon,
 } from "@/components/Icons";
@@ -22,15 +29,27 @@ const RATING_LABELS: Record<number, string> = {
   5: "Great",
 };
 
+const LENGTH_OPTIONS: { id: ReviewLength; label: string }[] = [
+  { id: "short", label: "Quick" },
+  { id: "medium", label: "Standard" },
+  { id: "detailed", label: "Detailed" },
+];
+
 export default function RatingExperienceClient({
   businessId,
   businessName,
+  businessCategory = "Other",
+  businessAddress = "",
+  businessDescription = "",
   sessionId,
   primaryColor,
   googleReviewUrl,
 }: {
   businessId: string;
   businessName: string;
+  businessCategory?: string;
+  businessAddress?: string;
+  businessDescription?: string;
   sessionId: string;
   primaryColor: string;
   googleReviewUrl: string;
@@ -39,16 +58,61 @@ export default function RatingExperienceClient({
   const [selected, setSelected] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
 
-  // Optional review draft & AI phrasing state for Google review path
-  const [draftOpen, setDraftOpen] = useState(false);
+  // Auto-generated unique business-oriented review state
+  const [draftOpen, setDraftOpen] = useState(true);
+  const [selectedHighlights, setSelectedHighlights] = useState<string[]>([]);
+  const [reviewLength, setReviewLength] = useState<ReviewLength>("medium");
   const [googleDraft, setGoogleDraft] = useState("");
-  const [googleSuggestion, setGoogleSuggestion] = useState<string | null>(null);
+  const [userEditedDraft, setUserEditedDraft] = useState(false);
   const [googleAiLoading, setGoogleAiLoading] = useState(false);
   const [googleCopied, setGoogleCopied] = useState(false);
   const [googleOpened, setGoogleOpened] = useState(false);
 
+  const avoidDraftsRef = useRef<string[]>([]);
+  const avoidOpeningsRef = useRef<string[]>([]);
+
+  const highlightOptions = useMemo(
+    () =>
+      getHighlightOptions({
+        businessName,
+        category: businessCategory,
+        description: businessDescription,
+      }),
+    [businessName, businessCategory, businessDescription]
+  );
+
   const brandHex = normalizeHex(primaryColor, "#1A4BE0");
   const brandInk = getContrastInk(brandHex);
+
+  const rememberDraft = (text: string, openingKey?: string) => {
+    const clean = text.trim();
+    if (!clean) return;
+    avoidDraftsRef.current = [...avoidDraftsRef.current.slice(-11), clean];
+    avoidOpeningsRef.current = [
+      ...avoidOpeningsRef.current.slice(-11),
+      openingKey || extractOpeningKey(clean),
+    ];
+  };
+
+  const generateLocalDraft = (
+    ratingValue: number,
+    highlights: string[],
+    length: ReviewLength
+  ) => {
+    const res = generateUniqueBusinessReview({
+      businessName,
+      category: businessCategory,
+      address: businessAddress,
+      description: businessDescription,
+      rating: ratingValue,
+      highlights,
+      length,
+      avoidDrafts: avoidDraftsRef.current,
+      avoidOpenings: avoidOpeningsRef.current,
+    });
+    rememberDraft(res.text, res.openingKey);
+    return res.text;
+  };
 
   const recordEvent = async (
     type: "rating_select" | "google_click",
@@ -73,10 +137,98 @@ export default function RatingExperienceClient({
   const selectStar = (n: number) => {
     setSelected(n);
     void recordEvent("rating_select", n);
+    if (!userEditedDraft || !googleDraft.trim()) {
+      const fresh = generateLocalDraft(n, selectedHighlights, reviewLength);
+      setGoogleDraft(fresh);
+      setUserEditedDraft(false);
+    }
+    setDraftOpen(true);
+    setGoogleOpened(false);
     setStage("thankyou");
   };
 
-  const activeGoogleText = (googleSuggestion ?? googleDraft).trim();
+  const requestNewUniqueDraft = async (
+    highlights = selectedHighlights,
+    length = reviewLength
+  ) => {
+    const ratingVal = selected ?? 5;
+    setGoogleAiLoading(true);
+    try {
+      const res = await fetch("/api/ai-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "generate",
+          businessName,
+          category: businessCategory,
+          address: businessAddress,
+          description: businessDescription,
+          rating: ratingVal,
+          highlights,
+          length,
+          avoidDrafts: avoidDraftsRef.current,
+          avoidOpenings: avoidOpeningsRef.current,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && typeof data.suggested === "string" && data.suggested.trim()) {
+        rememberDraft(data.suggested, data.openingKey);
+        setGoogleDraft(data.suggested);
+        setUserEditedDraft(false);
+        return;
+      }
+    } catch {
+      // Fall back cleanly to instant client engine below
+    } finally {
+      setGoogleAiLoading(false);
+    }
+
+    const fallback = generateLocalDraft(ratingVal, highlights, length);
+    setGoogleDraft(fallback);
+    setUserEditedDraft(false);
+  };
+
+  const requestPolishDraft = async () => {
+    if (!googleDraft.trim()) return;
+    setGoogleAiLoading(true);
+    try {
+      const res = await fetch("/api/ai-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "polish", text: googleDraft }),
+      });
+      const data = await res.json();
+      if (data.ok && typeof data.suggested === "string" && data.suggested.trim()) {
+        setGoogleDraft(data.suggested);
+      }
+    } catch {
+      // Keep customer's own draft if phrasing helper is unavailable
+    } finally {
+      setGoogleAiLoading(false);
+    }
+  };
+
+  const toggleHighlight = (chip: string) => {
+    const exists = selectedHighlights.includes(chip);
+    const next = exists
+      ? selectedHighlights.filter((h) => h !== chip)
+      : [...selectedHighlights.slice(-2), chip];
+    setSelectedHighlights(next);
+    if (!userEditedDraft) {
+      const fresh = generateLocalDraft(selected ?? 5, next, reviewLength);
+      setGoogleDraft(fresh);
+    }
+  };
+
+  const changeLength = (nextLen: ReviewLength) => {
+    setReviewLength(nextLen);
+    if (!userEditedDraft) {
+      const fresh = generateLocalDraft(selected ?? 5, selectedHighlights, nextLen);
+      setGoogleDraft(fresh);
+    }
+  };
+
+  const activeGoogleText = googleDraft.trim();
 
   const copyText = async (text: string) => {
     if (!text) return false;
@@ -87,26 +239,6 @@ export default function RatingExperienceClient({
       return true;
     } catch {
       return false;
-    }
-  };
-
-  const requestGoogleAiAssist = async () => {
-    if (!googleDraft.trim()) return;
-    setGoogleAiLoading(true);
-    try {
-      const res = await fetch("/api/ai-assist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: googleDraft }),
-      });
-      const data = await res.json();
-      if (data.ok && data.suggested) {
-        setGoogleSuggestion(data.suggested);
-      }
-    } catch {
-      // Keep customer's own draft if phrasing helper is unavailable
-    } finally {
-      setGoogleAiLoading(false);
     }
   };
 
@@ -208,21 +340,21 @@ export default function RatingExperienceClient({
           <div className="rounded-xl border border-black/[0.1] bg-white overflow-hidden">
             {googleReviewUrl ? (
               <div className="p-3.5 space-y-3">
-                {/* Optional AI-assisted draft helper for Google */}
+                {/* Auto-generated, unique, business-tailored review helper */}
                 <div>
                   <button
                     type="button"
                     onClick={() => setDraftOpen((v) => !v)}
                     aria-expanded={draftOpen}
-                    className="w-full flex items-center justify-between gap-2 text-left text-xs font-medium text-ink-secondary hover:text-ink py-1"
+                    className="w-full flex items-center justify-between gap-2 text-left text-xs font-medium text-ink hover:text-cobalt-700 py-0.5"
                   >
                     <span className="inline-flex items-center gap-1.5">
                       <SparklesIcon size={13} className="text-cobalt-600" />
-                      <span>Draft &amp; polish wording before opening Google (optional)</span>
+                      <span>Quick review starter (editable for Google)</span>
                     </span>
                     <ChevronDownIcon
                       size={14}
-                      className={`shrink-0 transition-transform ${
+                      className={`shrink-0 text-ink-muted transition-transform ${
                         draftOpen ? "rotate-180" : ""
                       }`}
                     />
@@ -230,61 +362,110 @@ export default function RatingExperienceClient({
 
                   {draftOpen && (
                     <div className="mt-2.5 space-y-2.5 pt-2.5 border-t border-black/[0.06] animate-panel-enter">
+                      {/* Quick highlight selector chips tailored to this business */}
+                      {(selected ?? 5) >= 4 && highlightOptions.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-medium text-ink-muted">
+                              Tap highlights to personalize:
+                            </span>
+                            <div className="inline-flex items-center rounded-lg bg-canvas p-0.5 border border-black/[0.07]">
+                              {LENGTH_OPTIONS.map((opt) => (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => changeLength(opt.id)}
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                                    reviewLength === opt.id
+                                      ? "bg-white text-ink shadow-panel"
+                                      : "text-ink-muted hover:text-ink"
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {highlightOptions.map((chip) => {
+                              const active = selectedHighlights.includes(chip);
+                              return (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  onClick={() => toggleHighlight(chip)}
+                                  aria-pressed={active}
+                                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors ${
+                                    active
+                                      ? "bg-cobalt-50 border-cobalt-300 text-cobalt-700"
+                                      : "bg-canvas border-black/[0.08] text-ink-secondary hover:bg-surface-subtle"
+                                  }`}
+                                >
+                                  {chip}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <label htmlFor="google-draft-input" className="sr-only">
-                        Optional review draft to copy to Google
+                        Editable starter review draft to copy to Google
                       </label>
                       <textarea
                         id="google-draft-input"
                         value={googleDraft}
-                        onChange={(e) => setGoogleDraft(e.target.value)}
-                        rows={3}
-                        placeholder="Write your genuine experience in your own words (optional)…"
-                        className="w-full rounded-xl border border-black/[0.13] bg-canvas/50 focus:bg-white p-3 text-sm text-ink placeholder:text-ink-muted/70 outline-none focus:border-cobalt-600 focus:ring-2 focus:ring-cobalt-600/15 resize-none"
+                        onChange={(e) => {
+                          setGoogleDraft(e.target.value);
+                          setUserEditedDraft(true);
+                        }}
+                        rows={4}
+                        placeholder="Write or generate a genuine review in your own words…"
+                        className="w-full rounded-xl border border-black/[0.13] bg-canvas/50 focus:bg-white p-3 text-sm text-ink placeholder:text-ink-muted/70 outline-none focus:border-cobalt-600 focus:ring-2 focus:ring-cobalt-600/15 resize-none leading-relaxed"
                       />
 
-                      {googleSuggestion !== null && (
-                        <div className="rounded-xl border border-cobalt-200 bg-cobalt-50/70 p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-cobalt-700">
-                              <SparklesIcon size={13} />
-                              <span>AI-assisted phrasing — edit or discard</span>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setGoogleSuggestion(null)}
-                              className="text-xs text-ink-muted hover:text-ink"
-                            >
-                              Discard
-                            </button>
-                          </div>
-                          <textarea
-                            value={googleSuggestion}
-                            onChange={(e) => setGoogleSuggestion(e.target.value)}
-                            rows={3}
-                            aria-label="Editable AI-assisted review phrasing"
-                            className="w-full rounded-lg border border-cobalt-200 bg-white p-2.5 text-sm text-ink outline-none focus:border-cobalt-600 resize-none"
-                          />
-                        </div>
-                      )}
-
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        {googleDraft.trim().length > 3 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             type="button"
-                            onClick={() => void requestGoogleAiAssist()}
+                            onClick={() => void requestNewUniqueDraft()}
                             disabled={googleAiLoading}
-                            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-cobalt-700 hover:bg-cobalt-50 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-cobalt-200 bg-cobalt-50/70 hover:bg-cobalt-50 px-2.5 py-1.5 text-xs font-medium text-cobalt-700 transition-colors disabled:opacity-50"
                           >
-                            <SparklesIcon size={13} />
+                            <RefreshIcon
+                              size={12}
+                              className={googleAiLoading ? "animate-spin" : ""}
+                            />
                             <span>
-                              {googleAiLoading
-                                ? "Polishing…"
-                                : googleSuggestion
-                                ? "Re-polish wording"
-                                : "Polish wording (AI-assisted)"}
+                              {googleAiLoading ? "Writing…" : "New unique draft"}
                             </span>
                           </button>
-                        )}
+
+                          {userEditedDraft && googleDraft.trim().length > 3 && (
+                            <button
+                              type="button"
+                              onClick={() => void requestPolishDraft()}
+                              disabled={googleAiLoading}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-ink-secondary hover:bg-surface-subtle transition-colors disabled:opacity-50"
+                            >
+                              <SparklesIcon size={12} className="text-cobalt-600" />
+                              <span>Polish edits</span>
+                            </button>
+                          )}
+
+                          {googleDraft.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGoogleDraft("");
+                                setUserEditedDraft(true);
+                              }}
+                              className="rounded-lg px-2 py-1.5 text-xs text-ink-muted hover:text-ink"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
 
                         {activeGoogleText && (
                           <button
@@ -300,12 +481,16 @@ export default function RatingExperienceClient({
                             ) : (
                               <>
                                 <CopyIcon size={13} />
-                                <span>Copy text</span>
+                                <span>Copy</span>
                               </>
                             )}
                           </button>
                         )}
                       </div>
+
+                      <p className="text-[11px] text-ink-muted leading-snug">
+                        Tailored to {businessName} &amp; your {selected}-star rating — edit freely so it matches your real visit.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -322,7 +507,7 @@ export default function RatingExperienceClient({
                     </span>
                     <span className="leading-snug">
                       {activeGoogleText
-                        ? "Copy Text & Open Google Review"
+                        ? "Copy Review & Open Google"
                         : "Share Your Experience on Google"}
                     </span>
                   </span>
@@ -335,7 +520,7 @@ export default function RatingExperienceClient({
                     className="rounded-lg bg-cobalt-50 border border-cobalt-200 px-3 py-2 text-xs text-cobalt-900 leading-relaxed"
                   >
                     {googleCopied || activeGoogleText
-                      ? `Your text is copied. Inside Google, tap ${selected} ${
+                      ? `Your review is copied. Inside Google, tap ${selected} ${
                           selected === 1 ? "star" : "stars"
                         } and paste your review.`
                       : `Google opened in a new tab — select ${selected} ${
@@ -362,7 +547,7 @@ export default function RatingExperienceClient({
             rating={selected}
             brandHex={brandHex}
             brandInk={brandInk}
-            initialDraft={activeGoogleText}
+            initialDraft={userEditedDraft ? activeGoogleText : ""}
           />
         </div>
       )}
@@ -431,7 +616,7 @@ function PrivateFeedback({
       const res = await fetch("/api/ai-assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: message }),
+        body: JSON.stringify({ mode: "polish", text: message }),
       });
       const data = await res.json();
       if (data.ok && data.suggested) {

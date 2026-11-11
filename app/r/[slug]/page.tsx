@@ -79,6 +79,9 @@ export default async function PublicLandingPage({
             <RatingExperienceClient
               businessId={business.id}
               businessName={business.name}
+              businessCategory={business.category}
+              businessAddress={business.address}
+              businessDescription={business.description}
               sessionId={session.id}
               primaryColor={brandHex}
               googleReviewUrl={business.googleReviewUrl}
