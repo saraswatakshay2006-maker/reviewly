@@ -1,22 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Host_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = Geist({
-  subsets: ["latin"],
+const geistSans = localFont({
+  src: "./fonts/geist-latin.woff2",
+  weight: "400 700",
   variable: "--font-sans",
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
+const geistMono = localFont({
+  src: "./fonts/geist-mono-latin.woff2",
+  weight: "400 600",
   variable: "--font-mono",
   display: "swap",
 });
 
-const hostGrotesk = Host_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const hostGrotesk = localFont({
+  src: "./fonts/host-grotesk-latin.woff2",
+  weight: "400 700",
   variable: "--font-display",
   display: "swap",
 });

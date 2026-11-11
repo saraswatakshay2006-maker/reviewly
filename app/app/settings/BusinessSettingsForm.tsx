@@ -238,15 +238,15 @@ export default function BusinessSettingsForm({
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1.5">
             <label htmlFor="biz-google" className="text-xs font-medium text-ink-secondary">
               Official Google write-a-review link
             </label>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowPlaceHelper((v) => !v)}
-                className="text-xs font-medium text-cobalt-600 hover:text-cobalt-700"
+                className="text-xs font-medium text-cobalt-600 hover:text-cobalt-700 whitespace-nowrap"
               >
                 {showPlaceHelper ? "Hide Place ID builder" : "Use Place ID"}
               </button>
@@ -255,7 +255,7 @@ export default function BusinessSettingsForm({
                   href={googleReviewUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-cobalt-600 hover:text-cobalt-700"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-cobalt-600 hover:text-cobalt-700 whitespace-nowrap"
                 >
                   <span>Test link</span>
                   <ExternalLinkIcon size={12} />

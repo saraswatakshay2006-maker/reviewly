@@ -330,8 +330,8 @@ export default function CardsStudioClient({
 
           <CopyButton
             value={qrTargetUrl}
-            label="Copy QR URL"
-            className="min-h-[42px] !rounded-control"
+            label="Copy URL"
+            className="min-h-[42px] !rounded-control whitespace-nowrap"
           />
         </div>
       </div>
