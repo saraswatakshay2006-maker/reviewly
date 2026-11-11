@@ -6,10 +6,10 @@ pages_build_output_dir = ".vercel/output/static"
 # Optional persistent storage bindings for Cloudflare Pages (*.pages.dev):
 # Option 1 (Recommended): Cloudflare D1 — create a D1 database in Cloudflare Dashboard
 # and bind it as "DB" (in Pages Settings -> Functions -> D1 database bindings, or uncomment below).
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "reviewly-db"
-# database_id = "<your-d1-database-id>"
+ [[d1_databases]]
+binding = "DB"
+ database_name = "reviewly-db"
+ database_id = "7f8133a3-9fad-485b-9706-0ab0dae23927"
 
 # Option 2: Cloudflare KV — create a KV namespace and bind it as "REVIEWLY_KV".
 # [[kv_namespaces]]
