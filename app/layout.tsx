@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   title: "Reviewly — Customer Trust & Experience Technology",
   description:
     "NFC and QR customer review infrastructure with zero gating, official Google link routing, private feedback, and transparent analytics.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
