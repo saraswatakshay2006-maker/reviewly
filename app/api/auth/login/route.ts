@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyPassword, signSession, sessionCookieName } from "@/lib/auth";
-import { getUserByEmail } from "@/lib/repo";
+import { getStorageMode } from "@/lib/db";
+import { countUsers, getUserByEmail } from "@/lib/repo";
 import { cookies } from "next/headers";
-
-
 
 const schema = z.object({
   email: z.string().email(),
@@ -28,6 +27,15 @@ export async function POST(req: NextRequest) {
     !user ||
     !(await verifyPassword(parsed.data.password, user.salt, user.passwordHash))
   ) {
+    if (!user && getStorageMode() === "memory" && (await countUsers()) === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No persistent database is bound to this Cloudflare deployment yet (edge memory reset). Bind a Cloudflare D1 database named DB or KV namespace named REVIEWLY_KV in Pages → Settings → Bindings, then redeploy.",
+        },
+        { status: 401 }
+      );
+    }
     return NextResponse.json(
       { error: "Invalid email or password" },
       { status: 401 }

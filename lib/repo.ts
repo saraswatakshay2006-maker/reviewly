@@ -14,16 +14,22 @@ import type {
 // ---------- Users ----------
 export const createUser = (u: Omit<User, "id" | "createdAt">) =>
   writeDB((db) => {
-    if (db.users.some((x) => x.email.toLowerCase() === u.email.toLowerCase())) {
+    const email = u.email.trim();
+    if (db.users.some((x) => x.email.trim().toLowerCase() === email.toLowerCase())) {
       throw new Error("Email already registered");
     }
-    const user: User = { ...u, id: uid(), createdAt: new Date().toISOString() };
+    const user: User = { ...u, email, id: uid(), createdAt: new Date().toISOString() };
     db.users.push(user);
     return user;
   });
 
 export const getUserByEmail = (email: string) =>
-  readDB((db) => db.users.find((x) => x.email.toLowerCase() === email.toLowerCase()) ?? null);
+  readDB((db) => {
+    const clean = email.trim().toLowerCase();
+    return db.users.find((x) => x.email.trim().toLowerCase() === clean) ?? null;
+  });
+
+export const countUsers = () => readDB((db) => db.users.length);
 
 export const getUserById = (id: string) =>
   readDB((db) => db.users.find((x) => x.id === id) ?? null);

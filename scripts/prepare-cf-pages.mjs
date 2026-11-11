@@ -8,6 +8,7 @@ const EDGE_TARGETS = [
   "app/api/events/route.ts",
   "app/api/feedback/route.ts",
   "app/api/qr/[slug]/route.ts",
+  "app/api/storage-status/route.ts",
   "app/t/[cardId]/route.ts",
   "app/r/[slug]/page.tsx",
   "app/app/layout.tsx",

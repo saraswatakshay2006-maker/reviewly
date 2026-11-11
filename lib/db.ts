@@ -55,6 +55,16 @@ function getNodeFs(): { fs: NodeFsPromises; path: NodePath } | null {
   return null;
 }
 
+export type StorageMode = "d1" | "kv" | "local" | "memory";
+
+export function getStorageMode(): StorageMode {
+  const cf = getCloudflareBindings();
+  if (cf?.DB) return "d1";
+  if (cf?.REVIEWLY_KV) return "kv";
+  if (getNodeFs()) return "local";
+  return "memory";
+}
+
 async function loadFromD1(): Promise<DB | null> {
   const cf = getCloudflareBindings();
   if (!cf?.DB) return null;
@@ -72,11 +82,16 @@ async function loadFromD1(): Promise<DB | null> {
   if (!row?.payload) {
     const fresh = emptyDB();
     await cf.DB.prepare(
-      "INSERT OR REPLACE INTO reviewly_store (id, payload) VALUES (?, ?)"
+      "INSERT OR IGNORE INTO reviewly_store (id, payload) VALUES (?, ?)"
     )
       .bind("main", JSON.stringify(fresh))
       .run();
-    return fresh;
+    const afterSeed = await cf.DB.prepare(
+      "SELECT payload FROM reviewly_store WHERE id = ?"
+    )
+      .bind("main")
+      .first<{ payload: string }>();
+    return afterSeed?.payload ? (JSON.parse(afterSeed.payload) as DB) : fresh;
   }
   return JSON.parse(row.payload) as DB;
 }
@@ -95,8 +110,8 @@ async function saveToD1(db: DB): Promise<boolean> {
 async function loadFromKV(): Promise<DB | null> {
   const cf = getCloudflareBindings();
   if (!cf?.REVIEWLY_KV) return null;
-  const existing = (await cf.REVIEWLY_KV.get("reviewly_db", "json")) as DB | null;
-  if (existing) return existing;
+  const raw = (await cf.REVIEWLY_KV.get("reviewly_db", "text")) as string | null;
+  if (raw) return JSON.parse(raw) as DB;
   const fresh = emptyDB();
   await cf.REVIEWLY_KV.put("reviewly_db", JSON.stringify(fresh));
   return fresh;

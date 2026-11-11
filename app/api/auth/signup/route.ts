@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword, signSession, sessionCookieName } from "@/lib/auth";
-import { createOrganization, createUser } from "@/lib/repo";
+import { createOrganization, createUser, getUserByEmail } from "@/lib/repo";
 import { cookies } from "next/headers";
-
-
 
 const schema = z.object({
   name: z.string().min(1).max(80),
@@ -25,6 +23,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Invalid input", details: parsed.error.flatten() },
       { status: 400 }
+    );
+  }
+
+  const existingUser = await getUserByEmail(parsed.data.email);
+  if (existingUser) {
+    return NextResponse.json(
+      { error: "Email already registered" },
+      { status: 409 }
     );
   }
 

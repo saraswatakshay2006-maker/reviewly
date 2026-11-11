@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EyeIcon, EyeOffIcon } from "@/components/Icons";
+import StorageModeNotice from "@/components/StorageModeNotice";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -49,6 +50,8 @@ export default function SignupPage() {
           Set up your business review page, QR stand, and NFC cards.
         </p>
       </div>
+
+      <StorageModeNotice />
 
       <form onSubmit={submit} className="space-y-4">
         <div>
