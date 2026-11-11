@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# local data (runtime)
+data/
+
+# cloudflare / pages build outputs
+.vercel/
+.wrangler/
+.open-next/
+
+# misc
+.DS_Store
+*.log
+.env*.local
+tsconfig.tsbuildinfo
