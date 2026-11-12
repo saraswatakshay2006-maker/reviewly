@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { unstable_noStore as noStore } from "next/cache";
 import { canAccessPublicReviewPage } from "@/lib/entitlements";
 import { createSession, getBusinessBySlug } from "@/lib/repo";
 import { getContrastInk, normalizeHex, rgbaFromHex } from "@/lib/color";
@@ -8,6 +9,7 @@ import PlatformSignature from "@/components/PlatformSignature";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function PublicLandingPage({
   params,
@@ -16,6 +18,7 @@ export default async function PublicLandingPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ src?: string }>;
 }) {
+  noStore();
   const hdrs = await headers();
   const { slug } = await params;
   const { src } = await searchParams;

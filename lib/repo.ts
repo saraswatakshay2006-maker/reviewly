@@ -131,7 +131,19 @@ export const getBusinessById = (id: string) =>
   readDB((db) => db.businesses.find((b) => b.id === id) ?? null);
 
 export const getBusinessBySlug = (slug: string) =>
-  readDB((db) => db.businesses.find((b) => b.publicSlug === slug) ?? null);
+  readDB((db) => {
+    let decoded = slug;
+    try {
+      decoded = decodeURIComponent(slug);
+    } catch {
+      decoded = slug;
+    }
+    const clean = decoded.trim().toLowerCase();
+    return (
+      db.businesses.find((b) => b.publicSlug.trim().toLowerCase() === clean) ??
+      null
+    );
+  });
 
 export const createBusiness = (
   orgId: string,
@@ -640,6 +652,36 @@ export const updateOrganizationSubscription = (
         Object.keys(overrides).length > 0 ? overrides : null;
       existingRec.updatedAt = nowIso;
       org.subscription = subscriptionRecordToOrgSummary(existingRec, targetPlan);
+    } else {
+      const merged = org.subscription!;
+      const planId = merged.plan || "starter";
+      const targetPlan = db.plans.find((p) => p.id === planId);
+      const primaryBiz = db.businesses.find((b) => b.organizationId === orgId);
+      const createdRec: SubscriptionRecord = {
+        id: `sub_${orgId}`,
+        organizationId: orgId,
+        businessId: primaryBiz?.id ?? null,
+        planId,
+        status: merged.status || "active",
+        paymentStatus: planId === "trial" ? "NONE" : "MANUAL",
+        billingInterval: merged.billingInterval ?? "monthly",
+        amountInr: merged.monthlyPriceInr ?? targetPlan?.monthlyPriceInr ?? 0,
+        currency: "INR",
+        startAt: org.createdAt || nowIso,
+        currentPeriodStart: org.createdAt || nowIso,
+        currentPeriodEnd: merged.renewalDate ?? null,
+        cancelledAt: merged.status === "cancelled" ? nowIso : null,
+        cancelAtPeriodEnd: false,
+        trialStart: planId === "trial" ? org.createdAt || nowIso : null,
+        trialEnd: planId === "trial" ? merged.renewalDate ?? null : null,
+        gatewaySubscriptionId: null,
+        customOverrides: null,
+        notes: merged.notes ?? "",
+        createdAt: org.createdAt || nowIso,
+        updatedAt: nowIso,
+      };
+      db.subscriptions.push(createdRec);
+      org.subscription = subscriptionRecordToOrgSummary(createdRec, targetPlan);
     }
 
     db.subscriptionAuditLogs.push({

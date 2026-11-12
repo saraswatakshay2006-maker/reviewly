@@ -1569,7 +1569,7 @@ function BusinessAccessPanel({
                     <p className="font-semibold text-ink">{sub.organizationName}</p>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {(org?.businesses ?? []).map((b) => (
-                        <Link
+                        <a
                           key={b.id}
                           href={`/r/${b.publicSlug}`}
                           target="_blank"
@@ -1578,7 +1578,7 @@ function BusinessAccessPanel({
                         >
                           <span>/r/{b.publicSlug}</span>
                           <ArrowUpRightIcon size={11} />
-                        </Link>
+                        </a>
                       ))}
                     </div>
                   </td>

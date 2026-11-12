@@ -98,7 +98,7 @@ export default async function FeedbackPage({
           </p>
         </div>
 
-        <Link
+        <a
           href={`/r/${business.publicSlug}`}
           target="_blank"
           rel="noreferrer"
@@ -106,7 +106,7 @@ export default async function FeedbackPage({
         >
           <span>Preview customer form</span>
           <ArrowUpRightIcon size={14} />
-        </Link>
+        </a>
       </div>
 
       <LocationSwitcher

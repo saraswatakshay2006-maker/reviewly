@@ -215,7 +215,11 @@ export default function AdminDashboardClient({
   const filteredOrgs = useMemo(() => {
     return data.organizations.filter((o) => {
       if (statusFilter !== "all") {
-        const eff = getSubscriptionHealth(o.subscription).effectiveStatus;
+        const eff = getSubscriptionHealth(
+          o.subscription,
+          Date.now(),
+          data.platformSettings.gracePeriodDays
+        ).effectiveStatus;
         if (eff !== statusFilter && o.subscription.status !== statusFilter) {
           return false;
         }
@@ -845,7 +849,7 @@ function ClientOrganizationCard({
             </strong>
           </span>
           {org.businesses[0] && (
-            <Link
+            <a
               href={`/r/${org.businesses[0].publicSlug}`}
               target="_blank"
               rel="noreferrer"
@@ -853,7 +857,7 @@ function ClientOrganizationCard({
             >
               <span>/r/{org.businesses[0].publicSlug}</span>
               <ArrowUpRightIcon size={12} />
-            </Link>
+            </a>
           )}
         </div>
       </div>
@@ -1176,7 +1180,7 @@ function BusinessEditorCard({
           <p className="text-[11px] font-medium text-ink-muted">{biz.organizationName}</p>
           <p className="font-mono text-xs text-cobalt-700">/r/{biz.publicSlug}</p>
         </div>
-        <Link
+        <a
           href={`/r/${biz.publicSlug}`}
           target="_blank"
           rel="noreferrer"
@@ -1184,7 +1188,7 @@ function BusinessEditorCard({
         >
           <span>Open</span>
           <ArrowUpRightIcon size={12} />
-        </Link>
+        </a>
       </div>
 
       <div className="grid grid-cols-2 gap-2.5">

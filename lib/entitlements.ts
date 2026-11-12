@@ -130,8 +130,33 @@ function buildContextFromDB(
   org: Organization,
   nowMs: number
 ): ResolvedEntitlementContext | null {
-  const sub = pickLatestOrgSubscription(db, org.id);
+  const pickedSub = pickLatestOrgSubscription(db, org.id);
+  const sub: SubscriptionRecord | null = pickedSub ? { ...pickedSub } : null;
   if (!sub) return null;
+
+  // Defensive sync: if legacy org.subscription was explicitly locked/expired more recently
+  // (e.g., concurrent write or external migration), never allow stale sub to bypass lock.
+  if (org.subscription) {
+    const legacyUpdatedMs = Date.parse(org.subscription.updatedAt || "");
+    const recUpdatedMs = Date.parse(sub.updatedAt || sub.createdAt || "");
+    const legacyEndMs = parseRenewalTimestamp(org.subscription.renewalDate);
+    const recEndMs = parseRenewalTimestamp(sub.currentPeriodEnd);
+    const legacyMoreRecent =
+      Number.isFinite(legacyUpdatedMs) &&
+      Number.isFinite(recUpdatedMs) &&
+      legacyUpdatedMs > recUpdatedMs + 500;
+    if (legacyMoreRecent) {
+      sub.status = org.subscription.status;
+      sub.currentPeriodEnd = org.subscription.renewalDate ?? null;
+    } else if (
+      org.subscription.status === "expired" &&
+      sub.status !== "expired" &&
+      sub.status !== "suspended" &&
+      (recEndMs === null || (legacyEndMs !== null && legacyEndMs <= recEndMs))
+    ) {
+      sub.status = "expired";
+    }
+  }
 
   const plan =
     db.plans.find((p) => p.id === sub.planId || p.slug === sub.planId) ??
@@ -208,6 +233,27 @@ export async function syncExpiredSubscriptions(
   organizationId?: string,
   nowMs: number = Date.now()
 ): Promise<number> {
+  const hasPending = await readDB((db) => {
+    const graceMs = Math.max(0, db.platformSettings.gracePeriodDays) * 86_400_000;
+    for (const sub of db.subscriptions) {
+      if (organizationId && sub.organizationId !== organizationId) continue;
+      if (
+        sub.status === "suspended" ||
+        sub.status === "expired" ||
+        (sub.status === "cancelled" && !sub.cancelAtPeriodEnd)
+      ) {
+        continue;
+      }
+      const endMs = parseRenewalTimestamp(sub.currentPeriodEnd);
+      if (endMs !== null && nowMs >= endMs + graceMs) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+  if (!hasPending) return 0;
+
   return writeDB((db) => {
     let transitioned = 0;
     const graceMs = Math.max(0, db.platformSettings.gracePeriodDays) * 86_400_000;
@@ -268,7 +314,14 @@ export async function getOrganizationEntitlements(
     ctx.subscription.status !== "expired" &&
     ctx.subscription.status !== "suspended"
   ) {
-    await syncExpiredSubscriptions(organizationId, nowMs);
+    const transitioned = await syncExpiredSubscriptions(organizationId, nowMs);
+    if (transitioned > 0) {
+      return readDB((db) => {
+        const org = db.organizations.find((o) => o.id === organizationId);
+        if (!org) return ctx;
+        return buildContextFromDB(db, org, nowMs) ?? ctx;
+      });
+    }
   }
   return ctx;
 }

@@ -3,6 +3,18 @@ import { notFound } from "next/navigation";
 import { canAccessPublicReviewPage } from "@/lib/entitlements";
 import { getCardByToken, getBusinessById } from "@/lib/repo";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "private, no-store, no-cache, must-revalidate, max-age=0",
+  "CDN-Cache-Control": "no-store",
+  "Cloudflare-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
 /**
  * NFC token resolution. A physical card's NFC payload points here. We resolve the
  * token server-side to the business's public landing page - so changing a
@@ -20,7 +32,7 @@ export async function GET(
     if (wantsJson) {
       return NextResponse.json(
         { error: "Card not found or inactive" },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
+        { status: 404, headers: NO_CACHE_HEADERS }
       );
     }
     notFound();
@@ -30,7 +42,7 @@ export async function GET(
     if (wantsJson) {
       return NextResponse.json(
         { error: "Business not found" },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
+        { status: 404, headers: NO_CACHE_HEADERS }
       );
     }
     notFound();
@@ -39,11 +51,13 @@ export async function GET(
   if (wantsJson && !access.allowed) {
     return NextResponse.json(
       { error: "Review page temporarily unavailable: subscription expired or paused" },
-      { status: 403, headers: { "Cache-Control": "private, no-store, max-age=0" } }
+      { status: 403, headers: NO_CACHE_HEADERS }
     );
   }
   const url = `/r/${business.publicSlug}?src=nfc`;
   const res = NextResponse.redirect(new URL(url, req.url));
-  res.headers.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
+  for (const [k, v] of Object.entries(NO_CACHE_HEADERS)) {
+    res.headers.set(k, v);
+  }
   return res;
 }
