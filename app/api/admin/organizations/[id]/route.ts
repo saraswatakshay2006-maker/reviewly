@@ -14,6 +14,8 @@ const patchSchema = z.object({
     .optional(),
   monthlyPriceInr: z.number().min(0).max(1_000_000).optional(),
   cardLimit: z.number().int().min(1).max(10_000).optional(),
+  locationLimit: z.number().int().min(1).max(500).optional(),
+  teamLimit: z.number().int().min(1).max(1000).optional(),
   renewalDate: z.string().max(40).nullable().optional(),
   notes: z.string().max(500).optional(),
 });

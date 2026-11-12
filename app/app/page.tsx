@@ -2,20 +2,28 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  listBusinessesForOrg,
   analyticsForBusiness,
+  branchPerformanceForOrg,
   getBusinessById,
   getOrganizationById,
   listCardsForBusiness,
+  listUsersForOrg,
+  monthlyAnalyticsForBusiness,
+  resolveActiveBusinessForOrg,
 } from "@/lib/repo";
-import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
+import {
+  getPlanEntitlements,
+  isSubscriptionActive,
+  resolveSubscription,
+} from "@/lib/subscriptions";
 import CopyButton from "@/components/CopyButton";
+import LocationSwitcher from "@/components/LocationSwitcher";
 import PlanInfoCard from "@/components/PlanInfoCard";
 import {
-
   ArrowUpRightIcon,
   BarChartIcon,
   CreditCardIcon,
+  DownloadIcon,
   ExternalLinkIcon,
   MessageSquareIcon,
   MonitorIcon,
@@ -27,15 +35,23 @@ import {
 } from "@/components/Icons";
 
 
-export default async function DashboardOverview() {
+export default async function DashboardOverview({
+  searchParams,
+}: {
+  searchParams: Promise<{ biz?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [org, businesses] = await Promise.all([
+  const { biz: requestedBiz } = await searchParams;
+  const [org, locState, members] = await Promise.all([
     getOrganizationById(user.organizationId),
-    listBusinessesForOrg(user.organizationId),
+    resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
+    listUsersForOrg(user.organizationId),
   ]);
+  const { businesses, active } = locState;
   const sub = org ? resolveSubscription(org) : null;
+  const entitlements = sub ? getPlanEntitlements(sub) : null;
   const nowMs = Date.now();
   const isPlanUsable = sub ? isSubscriptionActive(sub, nowMs) : true;
 
@@ -46,6 +62,8 @@ export default async function DashboardOverview() {
           <PlanInfoCard
             subscription={sub}
             activeCards={0}
+            locationCount={0}
+            teamCount={members.length}
             orgName={org?.name}
             serverNowMs={nowMs}
           />
@@ -92,13 +110,22 @@ export default async function DashboardOverview() {
     );
   }
 
-  const business = await getBusinessById(businesses[0].id);
+  const business = active ? await getBusinessById(active.id) : null;
   if (!business) redirect("/app/settings");
-  const [a, cards] = await Promise.all([
+
+  const showMonthly = entitlements?.features.monthlyReport ?? false;
+  const showBranches = entitlements?.features.branchReports ?? false;
+  const showExport = entitlements?.features.exportReports ?? false;
+
+  const [a, cardsPerBiz, monthly, branches] = await Promise.all([
     analyticsForBusiness(business.id),
-    listCardsForBusiness(business.id),
+    Promise.all(businesses.map((b) => listCardsForBusiness(b.id))),
+    showMonthly ? monthlyAnalyticsForBusiness(business.id, nowMs) : Promise.resolve(null),
+    showBranches ? branchPerformanceForOrg(user.organizationId) : Promise.resolve(null),
   ]);
-  const activeCards = cards.filter((c) => c.status === "active").length;
+  const activeCards = cardsPerBiz
+    .flat()
+    .filter((c) => c.status === "active").length;
 
   const directVisits = Math.max(0, a.totalSessions - a.scans);
   const totalRatings = Object.values(a.ratingDistribution).reduce((x, y) => x + y, 0);
@@ -204,10 +231,18 @@ export default async function DashboardOverview() {
         <PlanInfoCard
           subscription={sub}
           activeCards={activeCards}
+          locationCount={businesses.length}
+          teamCount={members.length}
           orgName={org?.name}
           serverNowMs={nowMs}
         />
       )}
+
+      <LocationSwitcher
+        businesses={businesses}
+        activeBusinessId={business.id}
+        basePath="/app"
+      />
 
       {/* Primary KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -459,6 +494,136 @@ export default async function DashboardOverview() {
           </ul>
         )}
       </section>
+
+      {/* Growth+: Monthly Performance Report */}
+      {showMonthly && monthly && (
+        <section className="rounded-card bg-white border border-black/[0.09] p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-display text-base font-semibold text-ink">
+                Monthly performance report
+              </h2>
+              <p className="text-xs text-ink-muted mt-0.5">
+                {monthly.currentMonth.label} vs {monthly.previousMonth.label} (UTC) for {business.name}
+              </p>
+            </div>
+            <span className="rounded-md bg-cobalt-50 px-2.5 py-0.5 text-[11px] font-medium text-cobalt-700">
+              {entitlements?.label} feature
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              {
+                label: "Visits",
+                cur: monthly.currentMonth.visits,
+                prev: monthly.previousMonth.visits,
+              },
+              {
+                label: "NFC + QR scans",
+                cur: monthly.currentMonth.scans,
+                prev: monthly.previousMonth.scans,
+              },
+              {
+                label: "Google clicks",
+                cur: monthly.currentMonth.googleClicks,
+                prev: monthly.previousMonth.googleClicks,
+              },
+              {
+                label: "Click rate",
+                cur: `${monthly.currentMonth.clickRatePct}%`,
+                prev: `${monthly.previousMonth.clickRatePct}%`,
+              },
+              {
+                label: "Private feedback",
+                cur: monthly.currentMonth.feedbackCount,
+                prev: monthly.previousMonth.feedbackCount,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-3"
+              >
+                <p className="text-[11px] text-ink-muted">{item.label}</p>
+                <p className="font-display text-xl font-semibold text-ink tabular-nums mt-1">
+                  {item.cur}
+                </p>
+                <p className="text-[11px] text-ink-muted tabular-nums mt-0.5">
+                  Prev month: {item.prev}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Pro+: Branch-wise Performance & CSV Export */}
+      {showBranches && branches && (
+        <section className="rounded-card bg-white border border-black/[0.09] overflow-hidden">
+          <div className="px-6 py-4 border-b border-black/[0.07] flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-base font-semibold text-ink">
+                Branch-wise performance report
+              </h2>
+              <p className="text-xs text-ink-muted mt-0.5">
+                Live activity across all {branches.length} location{branches.length === 1 ? "" : "s"} in your workspace.
+              </p>
+            </div>
+            {showExport && (
+              <a
+                href="/api/reports/export"
+                className="inline-flex items-center gap-1.5 rounded-control bg-cobalt-600 hover:bg-cobalt-700 px-3.5 py-2 text-xs font-medium text-white transition-colors"
+              >
+                <DownloadIcon size={14} />
+                <span>Export CSV report</span>
+              </a>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-black/[0.08] bg-canvas/70 text-ink-muted">
+                  <th className="py-3 px-4 font-medium">Location</th>
+                  <th className="py-3 px-4 font-medium">Active cards</th>
+                  <th className="py-3 px-4 font-medium">Visits</th>
+                  <th className="py-3 px-4 font-medium">NFC / QR</th>
+                  <th className="py-3 px-4 font-medium">Google clicks</th>
+                  <th className="py-3 px-4 font-medium">Avg rating</th>
+                  <th className="py-3 px-4 font-medium">Feedback</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[0.06] tabular-nums">
+                {branches.map((br) => (
+                  <tr key={br.businessId} className="hover:bg-canvas/40">
+                    <td className="py-3 px-4">
+                      <Link
+                        href={`/app?biz=${encodeURIComponent(br.businessId)}`}
+                        className="font-medium text-ink hover:text-cobalt-600"
+                      >
+                        {br.name}
+                      </Link>
+                      <p className="text-[11px] font-mono text-ink-muted">/r/{br.publicSlug}</p>
+                    </td>
+                    <td className="py-3 px-4">{br.activeCards}</td>
+                    <td className="py-3 px-4">{br.visits}</td>
+                    <td className="py-3 px-4">
+                      {br.nfcScans} / {br.qrScans}
+                    </td>
+                    <td className="py-3 px-4">
+                      {br.googleClicks} ({br.clickRatePct}%)
+                    </td>
+                    <td className="py-3 px-4">
+                      {br.avgRating !== null ? `${br.avgRating} ★` : "—"}
+                    </td>
+                    <td className="py-3 px-4">{br.feedbackCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

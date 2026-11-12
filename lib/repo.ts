@@ -214,6 +214,291 @@ export const updateFeedbackReply = (id: string, replyNote: string) =>
     return f;
   });
 
+// ---------- Organization Team & Reports ----------
+export const listUsersForOrg = (organizationId: string) =>
+  readDB((db) =>
+    db.users
+      .filter((u) => u.organizationId === organizationId)
+      .map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        organizationId: u.organizationId,
+        createdAt: u.createdAt,
+      }))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  );
+
+export const updateOrgMemberRole = (
+  organizationId: string,
+  targetUserId: string,
+  actingUserId: string,
+  role: Extract<Role, "owner" | "branch_manager" | "staff">
+) =>
+  writeDB((db) => {
+    const target = db.users.find(
+      (u) => u.id === targetUserId && u.organizationId === organizationId
+    );
+    if (!target) throw new Error("Team member not found");
+    if (target.role === "super_admin") {
+      throw new Error("Cannot change role of a super admin");
+    }
+    if (target.id === actingUserId && role !== "owner") {
+      throw new Error("You cannot downgrade your own owner role");
+    }
+    target.role = role;
+    return {
+      id: target.id,
+      email: target.email,
+      name: target.name,
+      role: target.role,
+      createdAt: target.createdAt,
+    };
+  });
+
+export const deleteOrgMember = (
+  organizationId: string,
+  targetUserId: string,
+  actingUserId: string
+) =>
+  writeDB((db) => {
+    const target = db.users.find(
+      (u) => u.id === targetUserId && u.organizationId === organizationId
+    );
+    if (!target) throw new Error("Team member not found");
+    if (target.id === actingUserId) {
+      throw new Error("You cannot remove your own active account");
+    }
+    if (target.role === "super_admin") {
+      throw new Error("Cannot remove a super admin from workspace");
+    }
+    db.users = db.users.filter((u) => u.id !== targetUserId);
+    db.members = db.members.filter((m) => m.userId !== targetUserId);
+    return { id: targetUserId };
+  });
+
+export async function resolveActiveBusinessForOrg(
+  organizationId: string,
+  requestedBizId?: string | null
+) {
+  const businesses = await listBusinessesForOrg(organizationId);
+  if (businesses.length === 0) return { businesses, active: null };
+  const matched = requestedBizId
+    ? businesses.find((b) => b.id === requestedBizId) ?? businesses[0]
+    : businesses[0];
+  return { businesses, active: matched };
+}
+
+export const monthlyAnalyticsForBusiness = (
+  businessId: string,
+  nowMs: number = Date.now()
+) =>
+  readDB((db) => {
+    const d = new Date(nowMs);
+    const curYear = d.getUTCFullYear();
+    const curMonth = d.getUTCMonth();
+    const prevDate = new Date(Date.UTC(curYear, curMonth - 1, 1));
+    const prevYear = prevDate.getUTCFullYear();
+    const prevMonth = prevDate.getUTCMonth();
+
+    const matchesMonth = (iso: string, y: number, m: number) => {
+      const dt = new Date(iso);
+      return dt.getUTCFullYear() === y && dt.getUTCMonth() === m;
+    };
+
+    const summarize = (y: number, m: number) => {
+      const sessions = db.sessions.filter(
+        (s) => s.businessId === businessId && matchesMonth(s.visitedAt, y, m)
+      );
+      const events = db.events.filter(
+        (e) => e.businessId === businessId && matchesMonth(e.createdAt, y, m)
+      );
+      const feedback = db.feedback.filter(
+        (f) => f.businessId === businessId && matchesMonth(f.createdAt, y, m)
+      );
+      const ratings = events
+        .filter((e) => e.type === "rating_select" && e.rating != null)
+        .map((e) => e.rating as number);
+      const googleClicks = events.filter((e) => e.type === "google_click").length;
+      const scans = sessions.filter((s) => s.scanType !== "direct").length;
+      return {
+        label: new Intl.DateTimeFormat("en-US", {
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        }).format(new Date(Date.UTC(y, m, 1))),
+        visits: sessions.length,
+        scans,
+        googleClicks,
+        clickRatePct: sessions.length
+          ? Math.round((googleClicks / sessions.length) * 100)
+          : 0,
+        feedbackCount: feedback.length,
+        avgRating: ratings.length
+          ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
+          : null,
+      };
+    };
+
+    return {
+      currentMonth: summarize(curYear, curMonth),
+      previousMonth: summarize(prevYear, prevMonth),
+    };
+  });
+
+const INSIGHT_STOPWORDS = new Set([
+  "the", "and", "for", "that", "this", "with", "was", "were", "are", "but",
+  "not", "you", "your", "have", "had", "has", "very", "too", "from", "they",
+  "our", "here", "there", "when", "what", "about", "been", "being", "into",
+  "just", "more", "some", "much", "good", "great", "nice", "really", "also",
+]);
+
+export const feedbackInsightsForBusiness = (businessId: string) =>
+  readDB((db) => {
+    const items = db.feedback.filter((f) => f.businessId === businessId);
+    const total = items.length;
+    const noted = items.filter((f) => Boolean(f.replyNote && f.replyNote.trim())).length;
+    const pending = total - noted;
+    const flagged = items.filter((f) => f.complaint).length;
+    const rated = items
+      .map((f) => f.rating)
+      .filter((r): r is number => r !== null);
+    const avgFeedbackRating = rated.length
+      ? Math.round((rated.reduce((a, b) => a + b, 0) / rated.length) * 10) / 10
+      : null;
+
+    const wordCounts = new Map<string, number>();
+    for (const item of items) {
+      const tokens = item.message
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length >= 4 && !INSIGHT_STOPWORDS.has(w));
+      const unique = new Set(tokens);
+      for (const word of unique) {
+        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+      }
+    }
+    const topThemes = Array.from(wordCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([word, count]) => ({ word, count }));
+
+    return {
+      total,
+      noted,
+      pending,
+      flagged,
+      replyCoveragePct: total > 0 ? Math.round((noted / total) * 100) : 0,
+      avgFeedbackRating,
+      topThemes,
+    };
+  });
+
+export const branchPerformanceForOrg = (organizationId: string) =>
+  readDB((db) => {
+    const businesses = db.businesses.filter((b) => b.organizationId === organizationId);
+    return businesses.map((biz) => {
+      const sessions = db.sessions.filter((s) => s.businessId === biz.id);
+      const events = db.events.filter((e) => e.businessId === biz.id);
+      const feedback = db.feedback.filter((f) => f.businessId === biz.id);
+      const cards = db.cards.filter((c) => c.businessId === biz.id);
+      const ratings = events
+        .filter((e) => e.type === "rating_select" && e.rating != null)
+        .map((e) => e.rating as number);
+      const googleClicks = events.filter((e) => e.type === "google_click").length;
+      const nfcScans = sessions.filter((s) => s.scanType === "nfc").length;
+      const qrScans = sessions.filter((s) => s.scanType === "qr").length;
+      return {
+        businessId: biz.id,
+        name: biz.name,
+        category: biz.category,
+        publicSlug: biz.publicSlug,
+        activeCards: cards.filter((c) => c.status === "active").length,
+        visits: sessions.length,
+        nfcScans,
+        qrScans,
+        googleClicks,
+        clickRatePct: sessions.length
+          ? Math.round((googleClicks / sessions.length) * 100)
+          : 0,
+        feedbackCount: feedback.length,
+        avgRating: ratings.length
+          ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
+          : null,
+      };
+    });
+  });
+
+function csvEscape(v: string | number | null | undefined): string {
+  const s = v === null || v === undefined ? "" : String(v);
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+export const exportOrgCsvReport = async (organizationId: string): Promise<string> => {
+  const [branches, dbFeedback] = await Promise.all([
+    branchPerformanceForOrg(organizationId),
+    readDB((db) => {
+      const bizMap = new Map(db.businesses.map((b) => [b.id, b.name]));
+      return db.feedback
+        .filter((f) => f.organizationId === organizationId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((f) => ({
+          businessName: bizMap.get(f.businessId) || "Unknown",
+          rating: f.rating,
+          message: f.message,
+          replyNote: f.replyNote,
+          createdAt: f.createdAt,
+        }));
+    }),
+  ]);
+
+  const lines: string[] = [
+    "SECTION,Branch,Category,Slug,Active Cards,Total Visits,NFC Taps,QR Scans,Google Clicks,Click Rate %,Avg Rating,Private Feedback",
+  ];
+  for (const b of branches) {
+    lines.push(
+      [
+        "BRANCH_SUMMARY",
+        b.name,
+        b.category,
+        b.publicSlug,
+        b.activeCards,
+        b.visits,
+        b.nfcScans,
+        b.qrScans,
+        b.googleClicks,
+        b.clickRatePct,
+        b.avgRating ?? "",
+        b.feedbackCount,
+      ]
+        .map(csvEscape)
+        .join(",")
+    );
+  }
+  lines.push("");
+  lines.push("SECTION,Branch,Rating,Feedback Message,Team Response Note,Submitted At");
+  for (const fb of dbFeedback) {
+    lines.push(
+      [
+        "PRIVATE_FEEDBACK",
+        fb.businessName,
+        fb.rating ?? "",
+        fb.message,
+        fb.replyNote ?? "",
+        fb.createdAt,
+      ]
+        .map(csvEscape)
+        .join(",")
+    );
+  }
+  return lines.join("\r\n");
+};
+
 // ---------- Super Admin SaaS Management ----------
 export interface SafeUserView {
   id: string;

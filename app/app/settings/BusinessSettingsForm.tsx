@@ -44,9 +44,13 @@ const SWATCHES = [
 export default function BusinessSettingsForm({
   orgId,
   initial,
+  canUseCustomBranding = false,
+  whiteLabel = false,
 }: {
   orgId: string;
   initial: Business | null;
+  canUseCustomBranding?: boolean;
+  whiteLabel?: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name || "");
@@ -57,6 +61,7 @@ export default function BusinessSettingsForm({
   const [welcomeMessage, setWelcomeMessage] = useState(
     initial?.welcomeMessage || ""
   );
+  const [logoUrl, setLogoUrl] = useState(initial?.logoUrl || "");
   const [primaryColor, setPrimaryColor] = useState(
     normalizeHex(initial?.primaryColor, "#1A4BE0")
   );
@@ -305,6 +310,34 @@ export default function BusinessSettingsForm({
         </div>
 
         <div>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label htmlFor="biz-logo" className="text-xs font-medium text-ink-secondary">
+              Custom logo URL (optional)
+            </label>
+            {!canUseCustomBranding && (
+              <span className="rounded bg-cobalt-50 px-2 py-0.5 text-[10px] font-semibold text-cobalt-700">
+                Pro &amp; Enterprise
+              </span>
+            )}
+          </div>
+          <input
+            id="biz-logo"
+            type="url"
+            name="logoUrl"
+            value={logoUrl}
+            onChange={(e) => setLogoUrl(e.target.value)}
+            disabled={!canUseCustomBranding}
+            placeholder="https://yourdomain.com/logo.png"
+            className={`${field} font-mono text-xs`}
+          />
+          <p className="text-[11px] text-ink-muted mt-1">
+            {canUseCustomBranding
+              ? "Replaces the monogram icon at the top of your customer review page."
+              : "Upgrade to Pro or Enterprise to display your custom brand logo on the customer review page."}
+          </p>
+        </div>
+
+        <div>
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="biz-google" className="text-xs font-medium text-ink-secondary">
               Official Google write-a-review link
@@ -449,12 +482,20 @@ export default function BusinessSettingsForm({
                 background: `linear-gradient(180deg, ${previewWash} 0%, #FFFFFF 100%)`,
               }}
             >
-              <div
-                className="mx-auto mb-3 h-14 w-14 rounded-2xl flex items-center justify-center font-display text-xl font-bold shadow-panel"
-                style={{ backgroundColor: previewHex, color: previewInk }}
-              >
-                {(name.trim() || "B").charAt(0).toUpperCase()}
-              </div>
+              {canUseCustomBranding && /^https?:\/\//i.test(logoUrl.trim()) ? (
+                <img
+                  src={logoUrl.trim()}
+                  alt={name.trim() || "Business logo"}
+                  className="mx-auto mb-3 h-14 w-14 rounded-2xl object-cover border border-black/10 bg-white shadow-panel"
+                />
+              ) : (
+                <div
+                  className="mx-auto mb-3 h-14 w-14 rounded-2xl flex items-center justify-center font-display text-xl font-bold shadow-panel"
+                  style={{ backgroundColor: previewHex, color: previewInk }}
+                >
+                  {(name.trim() || "B").charAt(0).toUpperCase()}
+                </div>
+              )}
               <p className="font-display text-lg font-semibold text-ink truncate">
                 {name.trim() || "Your Business Name"}
               </p>
@@ -504,10 +545,12 @@ export default function BusinessSettingsForm({
                 Share private feedback with {name.trim() || "the business"}
               </div>
 
-              <div className="pt-2 border-t border-black/[0.06] flex items-center justify-center gap-1 text-[10px] text-ink-muted">
-                <ShieldCheckIcon size={11} />
-                <span>Powered by Reviewly</span>
-              </div>
+              {!whiteLabel && (
+                <div className="pt-2 border-t border-black/[0.06] flex items-center justify-center gap-1 text-[10px] text-ink-muted">
+                  <ShieldCheckIcon size={11} />
+                  <span>Powered by Reviewly</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

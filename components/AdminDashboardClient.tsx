@@ -625,6 +625,12 @@ function ClientOrganizationCard({
   const [status, setStatus] = useState<SubscriptionStatus>(org.subscription.status);
   const [price, setPrice] = useState<number>(org.subscription.monthlyPriceInr);
   const [cardLimit, setCardLimit] = useState<number>(org.subscription.cardLimit);
+  const [locationLimit, setLocationLimit] = useState<number>(
+    org.subscription.locationLimit ?? PLAN_DEFAULTS[org.subscription.plan].locationLimit
+  );
+  const [teamLimit, setTeamLimit] = useState<number>(
+    org.subscription.teamLimit ?? PLAN_DEFAULTS[org.subscription.plan].teamLimit
+  );
   const [renewalDate, setRenewalDate] = useState<string>(() =>
     toLocalDatetimeInputValue(org.subscription.renewalDate)
   );
@@ -649,6 +655,8 @@ function ClientOrganizationCard({
     setPlan(nextPlan);
     setPrice(PLAN_DEFAULTS[nextPlan].monthlyPriceInr);
     setCardLimit(PLAN_DEFAULTS[nextPlan].cardLimit);
+    setLocationLimit(PLAN_DEFAULTS[nextPlan].locationLimit);
+    setTeamLimit(PLAN_DEFAULTS[nextPlan].teamLimit);
   };
 
   const saveSubscription = async (e: React.FormEvent) => {
@@ -671,6 +679,8 @@ function ClientOrganizationCard({
           status,
           monthlyPriceInr: Number(price) || 0,
           cardLimit: Math.max(1, Number(cardLimit) || 1),
+          locationLimit: Math.max(1, Number(locationLimit) || 1),
+          teamLimit: Math.max(1, Number(teamLimit) || 1),
           renewalDate: nextRenewalIso,
           notes: notes.trim(),
         }),
@@ -741,6 +751,12 @@ function ClientOrganizationCard({
 
         <div className="flex flex-wrap items-center gap-4 text-xs text-ink-secondary tabular-nums">
           <span>
+            Locations: <strong className="text-ink">{org.businesses.length}</strong>/{locationLimit}
+          </span>
+          <span>
+            Team: <strong className="text-ink">{org.users.length}</strong>/{teamLimit}
+          </span>
+          <span>
             Cards: <strong className="text-ink">{org.stats.activeCards}</strong>/{cardLimit}
           </span>
           <span>
@@ -769,7 +785,7 @@ function ClientOrganizationCard({
         </div>
       </div>
 
-      <form onSubmit={saveSubscription} className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+      <form onSubmit={saveSubscription} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
         <div>
           <label className="block text-[11px] font-medium text-ink-muted mb-1">
             Plan
@@ -832,6 +848,32 @@ function ClientOrganizationCard({
 
         <div>
           <label className="block text-[11px] font-medium text-ink-muted mb-1">
+            Locations Limit
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={locationLimit}
+            onChange={(e) => setLocationLimit(Number(e.target.value))}
+            className={`${inputCls} tabular-nums`}
+          />
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-medium text-ink-muted mb-1">
+            Team Accounts Limit
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={teamLimit}
+            onChange={(e) => setTeamLimit(Number(e.target.value))}
+            className={`${inputCls} tabular-nums`}
+          />
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-medium text-ink-muted mb-1">
             Renewal / Expiry Time
           </label>
           <input
@@ -855,7 +897,7 @@ function ClientOrganizationCard({
           />
         </div>
 
-        <div className="sm:col-span-2 lg:col-span-6 flex flex-wrap items-center justify-between gap-3 pt-1">
+        <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between gap-3 pt-1">
           <button
             type="submit"
             disabled={saving}

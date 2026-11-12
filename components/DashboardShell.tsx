@@ -16,6 +16,7 @@ import {
   MessageSquareIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  UsersIcon,
 } from "./Icons";
 import { getSubscriptionHealth } from "@/lib/subscriptions";
 import { RenewalCountdownBadge, RenewalDateTimeValue } from "./RenewalTimeText";
@@ -88,6 +89,7 @@ export default function DashboardShell({
       badge: pendingFeedbackCount > 0 ? pendingFeedbackCount : null,
     },
     { href: "/app/cards", label: "Cards & QR", icon: CreditCardIcon },
+    { href: "/app/team", label: "Team members", icon: UsersIcon },
     { href: "/app/settings", label: "Business settings", icon: SettingsIcon },
   ];
 

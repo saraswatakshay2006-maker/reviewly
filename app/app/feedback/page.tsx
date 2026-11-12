@@ -2,19 +2,34 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  listBusinessesForOrg,
-  getBusinessById,
   feedbackForBusiness,
+  feedbackInsightsForBusiness,
+  getBusinessById,
+  getOrganizationById,
+  resolveActiveBusinessForOrg,
 } from "@/lib/repo";
+import { getPlanEntitlements, resolveSubscription } from "@/lib/subscriptions";
 import FeedbackInboxClient from "@/components/FeedbackInboxClient";
+import LocationSwitcher from "@/components/LocationSwitcher";
 import { ArrowUpRightIcon, MessageSquareIcon } from "@/components/Icons";
 
-export default async function FeedbackPage() {
+export default async function FeedbackPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ biz?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const businesses = await listBusinessesForOrg(user.organizationId);
-  const business = businesses[0] ? await getBusinessById(businesses[0].id) : null;
+  const { biz: requestedBiz } = await searchParams;
+  const [org, locState] = await Promise.all([
+    getOrganizationById(user.organizationId),
+    resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
+  ]);
+  const { businesses, active } = locState;
+  const business = active ? await getBusinessById(active.id) : null;
+  const sub = org ? resolveSubscription(org) : null;
+  const entitlements = sub ? getPlanEntitlements(sub) : null;
 
   if (!business) {
     return (
@@ -32,7 +47,11 @@ export default async function FeedbackPage() {
     );
   }
 
-  const feedback = await feedbackForBusiness(business.id);
+  const showInsights = entitlements?.features.feedbackInsights ?? false;
+  const [feedback, insights] = await Promise.all([
+    feedbackForBusiness(business.id),
+    showInsights ? feedbackInsightsForBusiness(business.id) : Promise.resolve(null),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -57,6 +76,74 @@ export default async function FeedbackPage() {
         </Link>
       </div>
 
+      <LocationSwitcher
+        businesses={businesses}
+        activeBusinessId={business.id}
+        basePath="/app/feedback"
+      />
+
+      {showInsights && insights && insights.total > 0 && (
+        <section
+          aria-label="Customer feedback insights"
+          className="rounded-card bg-white border border-black/[0.09] p-5 space-y-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-sm font-semibold text-ink">
+              Customer feedback insights
+            </h2>
+            <span className="rounded-md bg-cobalt-50 px-2 py-0.5 text-[11px] font-medium text-cobalt-700">
+              {entitlements?.label} analytics
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+              <p className="text-[11px] text-ink-muted">Follow-up coverage</p>
+              <p className="text-base font-semibold text-ink mt-0.5 tabular-nums">
+                {insights.replyCoveragePct}%{" "}
+                <span className="text-xs font-normal text-ink-muted">
+                  ({insights.noted}/{insights.total})
+                </span>
+              </p>
+            </div>
+            <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+              <p className="text-[11px] text-ink-muted">Needs reply note</p>
+              <p className="text-base font-semibold text-ink mt-0.5 tabular-nums">
+                {insights.pending}
+              </p>
+            </div>
+            <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+              <p className="text-[11px] text-ink-muted">Avg feedback rating</p>
+              <p className="text-base font-semibold text-ink mt-0.5 tabular-nums">
+                {insights.avgFeedbackRating !== null
+                  ? `${insights.avgFeedbackRating} / 5`
+                  : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+              <p className="text-[11px] text-ink-muted">Flagged complaints</p>
+              <p className="text-base font-semibold text-ink mt-0.5 tabular-nums">
+                {insights.flagged}
+              </p>
+            </div>
+          </div>
+
+          {insights.topThemes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+              <span className="text-ink-muted mr-1">Frequent keywords:</span>
+              {insights.topThemes.map((t) => (
+                <span
+                  key={t.word}
+                  className="rounded-full bg-surface-subtle border border-black/[0.07] px-2.5 py-0.5 text-[11px] text-ink-secondary"
+                >
+                  {t.word} ({t.count})
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {feedback.length === 0 ? (
         <div className="rounded-card bg-white border border-black/[0.09] p-10 sm:p-14 text-center space-y-3">
           <div className="mx-auto h-11 w-11 rounded-xl bg-surface-subtle text-ink-muted flex items-center justify-center">
@@ -70,7 +157,14 @@ export default async function FeedbackPage() {
           </p>
         </div>
       ) : (
-        <FeedbackInboxClient items={feedback} />
+        <FeedbackInboxClient
+          items={feedback}
+          businessName={business.name}
+          canManageReplies={
+            entitlements?.features.feedbackMonitoringAndReplies ?? false
+          }
+          canUseAiDraft={entitlements?.features.aiResponseAssist ?? false}
+        />
       )}
     </div>
   );

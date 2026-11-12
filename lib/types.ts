@@ -24,6 +24,8 @@ export interface OrganizationSubscription {
   status: SubscriptionStatus;
   monthlyPriceInr: number;
   cardLimit: number;
+  locationLimit?: number;
+  teamLimit?: number;
   renewalDate: string | null;
   notes: string;
   updatedAt: string;

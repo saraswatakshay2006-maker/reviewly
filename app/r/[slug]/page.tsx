@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { getBusinessBySlug, getOrganizationById, createSession } from "@/lib/repo";
 import {
+  getPlanEntitlements,
   getSubscriptionHealth,
   resolveSubscription,
 } from "@/lib/subscriptions";
@@ -26,6 +27,7 @@ export default async function PublicLandingPage({
 
   const org = await getOrganizationById(business.organizationId);
   const sub = org ? resolveSubscription(org) : null;
+  const entitlements = sub ? getPlanEntitlements(sub) : null;
   const health = sub ? getSubscriptionHealth(sub) : null;
 
   if (health && !health.isUsable) {
@@ -84,12 +86,21 @@ export default async function PublicLandingPage({
               borderColor: borderTint,
             }}
           >
-            <div
-              className="mx-auto mb-3.5 h-16 w-16 rounded-2xl flex items-center justify-center font-display text-2xl font-bold shadow-panel"
-              style={{ backgroundColor: brandHex, color: brandInk }}
-            >
-              {business.name.charAt(0).toUpperCase()}
-            </div>
+            {entitlements?.features.customBranding &&
+            /^https?:\/\//i.test(business.logoUrl || "") ? (
+              <img
+                src={business.logoUrl}
+                alt={business.name}
+                className="mx-auto mb-3.5 h-16 w-16 rounded-2xl object-cover border border-black/10 bg-white shadow-panel"
+              />
+            ) : (
+              <div
+                className="mx-auto mb-3.5 h-16 w-16 rounded-2xl flex items-center justify-center font-display text-2xl font-bold shadow-panel"
+                style={{ backgroundColor: brandHex, color: brandInk }}
+              >
+                {business.name.charAt(0).toUpperCase()}
+              </div>
+            )}
             <h1 className="font-display text-xl sm:text-2xl font-semibold text-ink tracking-tight">
               {business.name}
             </h1>
@@ -125,9 +136,11 @@ export default async function PublicLandingPage({
         </article>
       </div>
 
-      <footer className="py-5 px-4 border-t border-black/[0.06] bg-white/80">
-        <PlatformSignature />
-      </footer>
+      {!entitlements?.features.whiteLabel && (
+        <footer className="py-5 px-4 border-t border-black/[0.06] bg-white/80">
+          <PlatformSignature />
+        </footer>
+      )}
     </main>
   );
 }

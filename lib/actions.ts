@@ -16,7 +16,11 @@ import {
   getOrganizationById,
   listCardsForBusiness,
 } from "@/lib/repo";
-import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
+import {
+  getPlanEntitlements,
+  isSubscriptionActive,
+  resolveSubscription,
+} from "@/lib/subscriptions";
 import { generateCardToken } from "@/lib/tokens";
 
 async function assertWorkspaceWritable(organizationId: string, role: string) {
@@ -35,7 +39,8 @@ async function assertWorkspaceWritable(organizationId: string, role: string) {
 export async function saveBusinessAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  await assertWorkspaceWritable(user.organizationId, user.role);
+  const sub = await assertWorkspaceWritable(user.organizationId, user.role);
+  const entitlements = sub ? getPlanEntitlements(sub) : null;
 
   const name = String(formData.get("name") || "").trim();
   const category = String(formData.get("category") || "").trim();
@@ -44,10 +49,26 @@ export async function saveBusinessAction(formData: FormData) {
   const welcomeMessage = String(formData.get("welcomeMessage") || "").trim();
   const primaryColor = String(formData.get("primaryColor") || "#1A4BE0");
   const googleReviewUrl = String(formData.get("googleReviewUrl") || "").trim();
+  const rawLogoUrl = String(formData.get("logoUrl") || "").trim();
   const businessId = String(formData.get("businessId") || "");
   const slug = String(formData.get("slug") || "").trim();
 
   if (!name) throw new Error("Business name is required");
+
+  let safeLogoUrl: string | undefined;
+  if (rawLogoUrl === "") {
+    safeLogoUrl = "";
+  } else {
+    if (entitlements && !entitlements.features.customBranding) {
+      throw new Error(
+        "Custom brand logo requires the Pro or Enterprise plan."
+      );
+    }
+    if (!/^https?:\/\//i.test(rawLogoUrl)) {
+      throw new Error("Logo URL must start with http:// or https://");
+    }
+    safeLogoUrl = rawLogoUrl;
+  }
 
   let activeSlug = slug;
   if (businessId) {
@@ -62,16 +83,29 @@ export async function saveBusinessAction(formData: FormData) {
         welcomeMessage,
         primaryColor,
         googleReviewUrl,
+        ...(safeLogoUrl !== undefined ? { logoUrl: safeLogoUrl } : {}),
       });
     }
   } else {
-    const finalSlug =
+    const existingBusinesses = await listBusinessesForOrg(user.organizationId);
+    if (entitlements && existingBusinesses.length >= entitlements.locationLimit) {
+      throw new Error(
+        `Business location limit reached (${entitlements.locationLimit} on ${entitlements.label}). Upgrade your plan to add more locations.`
+      );
+    }
+
+    const baseSlug =
       slug ||
       name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "")
         .slice(0, 24) ||
       "business";
+    const { getBusinessBySlug } = await import("@/lib/repo");
+    let finalSlug = baseSlug;
+    if (await getBusinessBySlug(finalSlug)) {
+      finalSlug = `${baseSlug.slice(0, 18)}${Math.floor(1000 + Math.random() * 9000)}`;
+    }
     activeSlug = finalSlug;
     const biz = await createBusiness(user.organizationId, {
       name,
@@ -83,11 +117,15 @@ export async function saveBusinessAction(formData: FormData) {
       googleReviewUrl,
       publicSlug: finalSlug,
     });
+    if (safeLogoUrl) {
+      await updateBusiness(biz.id, { logoUrl: safeLogoUrl });
+    }
     await addMember(biz.id, user.id, "owner");
   }
 
   revalidatePath("/app");
   revalidatePath("/app/cards");
+  revalidatePath("/app/feedback");
   revalidatePath("/app/settings");
   if (activeSlug) revalidatePath(`/r/${activeSlug}`);
 }
@@ -104,8 +142,13 @@ export async function createCardAction(formData: FormData) {
   }
 
   if (sub) {
-    const existingCards = await listCardsForBusiness(business.id);
-    const activeCount = existingCards.filter((c) => c.status === "active").length;
+    const orgBusinesses = await listBusinessesForOrg(user.organizationId);
+    const cardsPerBiz = await Promise.all(
+      orgBusinesses.map((b) => listCardsForBusiness(b.id))
+    );
+    const activeCount = cardsPerBiz
+      .flat()
+      .filter((c) => c.status === "active").length;
     if (activeCount >= sub.cardLimit) {
       throw new Error(
         `Active card limit reached (${sub.cardLimit} on your current plan). Ask your administrator to upgrade your plan.`
@@ -125,21 +168,23 @@ export async function createCardAction(formData: FormData) {
   });
 
   revalidatePath("/app/cards");
+  revalidatePath("/app");
 }
 
 export async function retireCardAction(cardId: string) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  await assertWorkspaceWritable(user.organizationId, user.role);
 
   const businesses = await listBusinessesForOrg(user.organizationId);
   const businessIds = new Set(businesses.map((b) => b.id));
-  const { listCardsForBusiness } = await import("@/lib/repo");
 
   for (const bizId of businessIds) {
     const cards = await listCardsForBusiness(bizId);
     if (cards.some((c) => c.id === cardId)) {
       await updateCardStatus(cardId, "retired");
       revalidatePath("/app/cards");
+      revalidatePath("/app");
       return;
     }
   }
@@ -149,6 +194,12 @@ export async function retireCardAction(cardId: string) {
 export async function updateFeedbackReplyAction(feedbackId: string, note: string) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const sub = await assertWorkspaceWritable(user.organizationId, user.role);
+  if (sub && !getPlanEntitlements(sub).features.feedbackMonitoringAndReplies) {
+    throw new Error(
+      "Internal team reply notes require the Growth plan or higher."
+    );
+  }
 
   const trimmed = note.trim();
   if (!trimmed) return;
@@ -159,6 +210,7 @@ export async function updateFeedbackReplyAction(feedbackId: string, note: string
     if (items.some((f) => f.id === feedbackId)) {
       await updateFeedbackReply(feedbackId, trimmed);
       revalidatePath("/app/feedback");
+      revalidatePath("/app");
       return;
     }
   }

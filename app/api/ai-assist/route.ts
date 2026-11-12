@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { getCurrentUser } from "@/lib/auth";
 import { getEnv } from "@/lib/cloudflare";
+import { getOrganizationById } from "@/lib/repo";
+import {
+  getPlanEntitlements,
+  isSubscriptionActive,
+  resolveSubscription,
+} from "@/lib/subscriptions";
 import {
   extractOpeningKey,
   generateUniqueBusinessReview,
@@ -8,7 +15,7 @@ import {
 } from "@/lib/reviewGenerator";
 
 const bodySchema = z.object({
-  mode: z.enum(["generate", "polish"]).optional(),
+  mode: z.enum(["generate", "polish", "reply_draft"]).optional(),
   text: z.string().max(2000).optional(),
   businessName: z.string().min(1).max(120).optional(),
   category: z.string().max(80).optional(),
@@ -180,6 +187,61 @@ async function llmGenerateUniqueReview(
   }
 }
 
+async function generateBusinessReplyDraft(params: {
+  businessName: string;
+  customerText: string;
+  rating: number | null | undefined;
+}): Promise<{ text: string; engine: "ai" | "smart-template" }> {
+  const { businessName, customerText, rating } = params;
+  const fallback = () => {
+    const cleanSnippet = customerText.trim().slice(0, 140);
+    if (rating !== null && rating !== undefined && rating <= 3) {
+      return `Thank you for sharing candid feedback with ${businessName}. Follow-up: review "${cleanSnippet}" with the team, address the concern promptly, and reach out if the guest wants to follow up.`;
+    }
+    if (rating !== null && rating !== undefined && rating >= 4) {
+      return `Thank you for visiting ${businessName} and sharing your feedback! Internal note: share this positive feedback ("${cleanSnippet}") with the floor staff and thank the customer.`;
+    }
+    return `Thank you for taking a moment to share feedback with ${businessName}. Follow-up logged for the team regarding: "${cleanSnippet}".`;
+  };
+
+  const key = getEnv("OPENAI_API_KEY");
+  if (!key) return { text: fallback(), engine: "smart-template" };
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.4,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Draft a concise, practical internal follow-up and customer reply suggestion (2 sentences max) for a local business owner responding to private customer feedback. Stay factual to the feedback message without inventing promises.",
+          },
+          {
+            role: "user",
+            content: `Business: ${businessName}\nRating: ${rating ?? "not given"}\nFeedback: ${customerText}`,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return { text: fallback(), engine: "smart-template" };
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content;
+    if (typeof text === "string" && text.trim()) {
+      return { text: text.trim(), engine: "ai" };
+    }
+  } catch {
+    // Fallback cleanly
+  }
+  return { text: fallback(), engine: "smart-template" };
+}
+
 export async function POST(req: NextRequest) {
   let json: unknown;
   try {
@@ -195,6 +257,49 @@ export async function POST(req: NextRequest) {
 
   const d = parsed.data;
   const effectiveMode = d.mode ?? (d.text?.trim() ? "polish" : "generate");
+
+  if (effectiveMode === "reply_draft") {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const org = await getOrganizationById(user.organizationId);
+    if (org) {
+      const sub = resolveSubscription(org);
+      if (user.role !== "super_admin" && !isSubscriptionActive(sub)) {
+        return NextResponse.json(
+          { error: "Subscription expired or paused." },
+          { status: 403 }
+        );
+      }
+      if (
+        user.role !== "super_admin" &&
+        !getPlanEntitlements(sub).features.aiResponseAssist
+      ) {
+        return NextResponse.json(
+          { error: "AI-assisted response drafts require the Growth plan or higher." },
+          { status: 403 }
+        );
+      }
+    }
+    const rawFeedback = d.text?.trim() || "";
+    if (!rawFeedback) {
+      return NextResponse.json(
+        { error: "Feedback text is required to draft a response" },
+        { status: 400 }
+      );
+    }
+    const reply = await generateBusinessReplyDraft({
+      businessName: d.businessName || "our business",
+      customerText: rawFeedback,
+      rating: d.rating,
+    });
+    return NextResponse.json({
+      ok: true,
+      suggested: reply.text,
+      engine: reply.engine,
+    });
+  }
 
   if (effectiveMode === "polish") {
     const rawText = d.text?.trim() || "";

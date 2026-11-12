@@ -2,12 +2,21 @@
 
 import { useEffect, useState } from "react";
 import {
-  PLAN_DEFAULTS,
+  getPlanEntitlements,
   getSubscriptionHealth,
   type EffectiveSubscriptionStatus,
 } from "@/lib/subscriptions";
 import type { OrganizationSubscription } from "@/lib/types";
-import { CalendarIcon, ClockIcon, CreditCardIcon, LockIcon, ShieldCheckIcon } from "./Icons";
+import {
+  BuildingIcon,
+  CalendarIcon,
+  CheckIcon,
+  ClockIcon,
+  CreditCardIcon,
+  LockIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+} from "./Icons";
 import { RenewalCountdownBadge, RenewalDateTimeValue } from "./RenewalTimeText";
 
 const STATUS_META: Record<
@@ -43,12 +52,16 @@ const STATUS_META: Record<
 export default function PlanInfoCard({
   subscription,
   activeCards,
+  locationCount = 1,
+  teamCount = 1,
   orgName,
   compact = false,
   serverNowMs,
 }: {
   subscription: OrganizationSubscription;
   activeCards: number;
+  locationCount?: number;
+  teamCount?: number;
   orgName?: string;
   compact?: boolean;
   serverNowMs?: number;
@@ -61,16 +74,19 @@ export default function PlanInfoCard({
     return () => window.clearInterval(id);
   }, [subscription.renewalDate, subscription.status]);
 
-  const effectiveNow = nowMs ?? serverNowMs ?? Date.parse(subscription.updatedAt) ?? 0;
+  const effectiveNow =
+    nowMs ?? serverNowMs ?? Date.parse(subscription.updatedAt) ?? 0;
   const health = getSubscriptionHealth(subscription, effectiveNow);
-
-  const planMeta = PLAN_DEFAULTS[subscription.plan];
+  const planMeta = getPlanEntitlements(subscription);
   const statusMeta = STATUS_META[health.effectiveStatus];
+
   const priceText =
-    subscription.monthlyPriceInr > 0
+    subscription.plan === "enterprise" && subscription.monthlyPriceInr === 0
+      ? "Custom pricing"
+      : subscription.monthlyPriceInr > 0
       ? `₹${subscription.monthlyPriceInr.toLocaleString("en-IN")} / mo`
       : subscription.plan === "trial"
-      ? "Free trial"
+      ? "Free 14-day trial"
       : "₹0 / mo";
 
   return (
@@ -112,6 +128,9 @@ export default function PlanInfoCard({
                 >
                   {statusMeta.label}
                 </span>
+                <span className="rounded-md bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-ink-secondary">
+                  {planMeta.supportTier}
+                </span>
               </div>
               <p className="text-xs text-ink-muted mt-0.5">
                 {orgName ? `${orgName} · ` : ""}
@@ -143,8 +162,8 @@ export default function PlanInfoCard({
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-3">
-          <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5 col-span-2 lg:col-span-1">
             <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
               <CalendarIcon size={13} />
               <span>Renewal / Expiry time</span>
@@ -177,14 +196,48 @@ export default function PlanInfoCard({
 
           <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
             <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
-              <CreditCardIcon size={13} />
-              <span>NFC / QR card quota</span>
+              <BuildingIcon size={13} />
+              <span>Locations</span>
             </p>
             <p className="text-xs sm:text-sm font-semibold text-ink mt-1 tabular-nums">
-              {activeCards} / {subscription.cardLimit} active cards
+              {locationCount} / {planMeta.locationLimit}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
+              <UsersIcon size={13} />
+              <span>Team accounts</span>
+            </p>
+            <p className="text-xs sm:text-sm font-semibold text-ink mt-1 tabular-nums">
+              {teamCount} / {planMeta.teamLimit}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
+              <CreditCardIcon size={13} />
+              <span>NFC / QR cards</span>
+            </p>
+            <p className="text-xs sm:text-sm font-semibold text-ink mt-1 tabular-nums">
+              {activeCards} / {planMeta.cardLimit} active
             </p>
           </div>
         </div>
+
+        {!compact && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {planMeta.highlights.map((feat) => (
+              <span
+                key={feat}
+                className="inline-flex items-center gap-1 rounded-md border border-black/[0.07] bg-canvas px-2.5 py-1 text-[11px] text-ink-secondary"
+              >
+                <CheckIcon size={11} className="text-emerald-600 shrink-0" />
+                <span>{feat}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         {!health.isUsable && (
           <div

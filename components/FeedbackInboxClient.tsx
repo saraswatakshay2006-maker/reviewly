@@ -8,6 +8,7 @@ import {
   LockIcon,
   MessageSquareIcon,
   SearchIcon,
+  SparklesIcon,
   StarIcon,
 } from "./Icons";
 
@@ -15,8 +16,14 @@ type FilterMode = "all" | "pending" | "replied" | "complaints";
 
 export default function FeedbackInboxClient({
   items,
+  businessName = "this business",
+  canManageReplies = true,
+  canUseAiDraft = false,
 }: {
   items: FeedbackSubmission[];
+  businessName?: string;
+  canManageReplies?: boolean;
+  canUseAiDraft?: boolean;
 }) {
   const [filter, setFilter] = useState<FilterMode>("all");
   const [query, setQuery] = useState("");
@@ -120,7 +127,13 @@ export default function FeedbackInboxClient({
       ) : (
         <div className="space-y-4">
           {filtered.map((item) => (
-            <FeedbackCard key={item.id} item={item} />
+            <FeedbackCard
+              key={item.id}
+              item={item}
+              businessName={businessName}
+              canManageReplies={canManageReplies}
+              canUseAiDraft={canUseAiDraft}
+            />
           ))}
         </div>
       )}
@@ -128,11 +141,49 @@ export default function FeedbackInboxClient({
   );
 }
 
-function FeedbackCard({ item }: { item: FeedbackSubmission }) {
+function FeedbackCard({
+  item,
+  businessName,
+  canManageReplies,
+  canUseAiDraft,
+}: {
+  item: FeedbackSubmission;
+  businessName: string;
+  canManageReplies: boolean;
+  canUseAiDraft: boolean;
+}) {
   const [note, setNote] = useState(item.replyNote || "");
   const [savedNotice, setSavedNotice] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const handleAiDraft = async () => {
+    setError(null);
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "reply_draft",
+          businessName,
+          text: item.message,
+          rating: item.rating,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not draft response");
+      if (json.suggested) {
+        setNote(json.suggested);
+        setSavedNotice(false);
+      }
+    } catch (err) {
+      setError((err as Error).message || "Could not generate response draft");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,48 +253,68 @@ function FeedbackCard({ item }: { item: FeedbackSubmission }) {
         {item.message}
       </p>
 
-      <form
-        onSubmit={handleSave}
-        className="pt-4 border-t border-black/[0.07] space-y-2"
-      >
-        <label
-          htmlFor={`note-${item.id}`}
-          className="block text-xs font-medium text-ink-secondary"
+      {canManageReplies ? (
+        <form
+          onSubmit={handleSave}
+          className="pt-4 border-t border-black/[0.07] space-y-2"
         >
-          Internal team response note
-        </label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            id={`note-${item.id}`}
-            value={note}
-            onChange={(e) => {
-              setNote(e.target.value);
-              setSavedNotice(false);
-            }}
-            placeholder="Record follow-up actions for your team…"
-            className="flex-1 min-h-[40px] rounded-control border border-black/[0.13] bg-canvas/60 focus:bg-white px-3.5 py-2 text-sm text-ink placeholder:text-ink-muted/70 outline-none focus:border-cobalt-600 focus:ring-2 focus:ring-cobalt-600/15"
-          />
-          <button
-            type="submit"
-            disabled={isPending || !note.trim()}
-            className="min-h-[40px] rounded-control bg-cobalt-600 hover:bg-cobalt-700 px-4 py-2 text-xs font-medium text-white transition-colors disabled:opacity-45 shrink-0"
-          >
-            {isPending ? "Saving…" : "Save note"}
-          </button>
-        </div>
+          <div className="flex items-center justify-between gap-2">
+            <label
+              htmlFor={`note-${item.id}`}
+              className="block text-xs font-medium text-ink-secondary"
+            >
+              Internal team response note
+            </label>
+            {canUseAiDraft && (
+              <button
+                type="button"
+                disabled={aiLoading}
+                onClick={() => void handleAiDraft()}
+                className="inline-flex items-center gap-1 text-xs font-medium text-cobalt-600 hover:text-cobalt-700 disabled:opacity-50"
+              >
+                <SparklesIcon size={13} />
+                <span>{aiLoading ? "Drafting…" : "AI draft response"}</span>
+              </button>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              id={`note-${item.id}`}
+              value={note}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setSavedNotice(false);
+              }}
+              placeholder="Record follow-up actions for your team…"
+              className="flex-1 min-h-[40px] rounded-control border border-black/[0.13] bg-canvas/60 focus:bg-white px-3.5 py-2 text-sm text-ink placeholder:text-ink-muted/70 outline-none focus:border-cobalt-600 focus:ring-2 focus:ring-cobalt-600/15"
+            />
+            <button
+              type="submit"
+              disabled={isPending || !note.trim()}
+              className="min-h-[40px] rounded-control bg-cobalt-600 hover:bg-cobalt-700 px-4 py-2 text-xs font-medium text-white transition-colors disabled:opacity-45 shrink-0"
+            >
+              {isPending ? "Saving…" : "Save note"}
+            </button>
+          </div>
 
-        {savedNotice && (
-          <p className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-            <CheckIcon size={13} />
-            <span>Team note saved.</span>
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="text-xs font-medium text-red-600">
-            {error}
-          </p>
-        )}
-      </form>
+          {savedNotice && (
+            <p className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+              <CheckIcon size={13} />
+              <span>Team note saved.</span>
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-xs font-medium text-red-600">
+              {error}
+            </p>
+          )}
+        </form>
+      ) : (
+        <div className="pt-3 border-t border-black/[0.07] text-xs text-ink-muted">
+          Team response tracking &amp; AI reply assistance unlock on the{" "}
+          <strong className="font-medium text-ink">Growth</strong> plan and higher.
+        </div>
+      )}
     </article>
   );
 }

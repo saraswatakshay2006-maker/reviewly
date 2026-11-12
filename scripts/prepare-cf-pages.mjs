@@ -8,7 +8,10 @@ const EDGE_TARGETS = [
   "app/api/events/route.ts",
   "app/api/feedback/route.ts",
   "app/api/qr/[slug]/route.ts",
+  "app/api/reports/export/route.ts",
   "app/api/storage-status/route.ts",
+  "app/api/team/route.ts",
+  "app/api/team/[id]/route.ts",
   "app/api/admin/bootstrap/route.ts",
   "app/api/admin/overview/route.ts",
   "app/api/admin/organizations/[id]/route.ts",
@@ -23,6 +26,7 @@ const EDGE_TARGETS = [
   "app/app/page.tsx",
   "app/app/cards/page.tsx",
   "app/app/feedback/page.tsx",
+  "app/app/team/page.tsx",
   "app/app/settings/page.tsx",
 ];
 

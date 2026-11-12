@@ -23,11 +23,12 @@ export default async function DashboardLayout({
   const businesses = await listBusinessesForOrg(user.organizationId);
   const primaryBiz = businesses[0] ?? null;
 
-  let pendingFeedbackCount = 0;
-  if (primaryBiz) {
-    const items = await feedbackForBusiness(primaryBiz.id);
-    pendingFeedbackCount = items.filter((f) => !f.replyNote).length;
-  }
+  const feedbackLists = await Promise.all(
+    businesses.map((b) => feedbackForBusiness(b.id))
+  );
+  const pendingFeedbackCount = feedbackLists
+    .flat()
+    .filter((f) => !f.replyNote).length;
 
   async function signOutAction() {
     "use server";

@@ -2,6 +2,7 @@ import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import PlatformSignature from "@/components/PlatformSignature";
 import LandingInteractiveDemo from "@/components/LandingInteractiveDemo";
+import { PLAN_DEFAULTS, PUBLIC_PRICING_PLANS } from "@/lib/subscriptions";
 import {
   ArrowUpRightIcon,
   CheckIcon,
@@ -58,6 +59,12 @@ export default function HomePage() {
               className="hidden md:inline-block text-sm font-medium text-ink-secondary hover:text-ink transition-colors whitespace-nowrap"
             >
               Compliance
+            </a>
+            <a
+              href="#pricing"
+              className="hidden md:inline-block text-sm font-medium text-ink-secondary hover:text-ink transition-colors whitespace-nowrap"
+            >
+              Plans
             </a>
             <Link
               href="/login"
@@ -306,6 +313,99 @@ export default function HomePage() {
                   <p className="text-sm text-ink-secondary leading-relaxed">{rule.detail}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* SaaS Plans */}
+        <section id="pricing" className="py-16 sm:py-24 border-t border-black/[0.07]">
+          <div className="max-w-6xl mx-auto px-5 sm:px-8 space-y-10">
+            <div className="max-w-2xl space-y-2">
+              <h2 className="font-display text-3xl sm:text-4xl font-semibold text-ink tracking-[-0.025em] text-balance">
+                Plans built for single shops to multi-branch chains.
+              </h2>
+              <p className="text-base text-ink-secondary leading-relaxed">
+                Start with a 14-day trial workspace. Every feature listed below is active and enforced inside Reviewly.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+              {PUBLIC_PRICING_PLANS.map((planId) => {
+                const plan = PLAN_DEFAULTS[planId];
+                const isPopular = planId === "growth";
+                return (
+                  <div
+                    key={plan.id}
+                    className={`rounded-card bg-white p-6 flex flex-col justify-between gap-6 ${
+                      isPopular
+                        ? "border-2 border-cobalt-600 shadow-elevated"
+                        : "border border-black/[0.09] shadow-panel"
+                    }`}
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                            isPopular
+                              ? "bg-cobalt-600 text-white"
+                              : "bg-surface-subtle text-ink-secondary"
+                          }`}
+                        >
+                          {plan.badge}
+                        </span>
+                        <span className="font-display text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                          {plan.label}
+                        </span>
+                      </div>
+
+                      <div>
+                        {plan.customPrice ? (
+                          <p className="font-display text-3xl font-semibold text-ink">
+                            Custom
+                          </p>
+                        ) : (
+                          <p className="font-display text-3xl font-semibold text-ink tabular-nums">
+                            ₹{plan.monthlyPriceInr.toLocaleString("en-IN")}
+                            <span className="text-xs font-normal text-ink-muted">
+                              {" "}
+                              /month
+                            </span>
+                          </p>
+                        )}
+                        <p className="text-xs text-ink-secondary mt-2 leading-relaxed">
+                          {plan.tagline}
+                        </p>
+                      </div>
+
+                      <ul className="space-y-2 pt-3 border-t border-black/[0.07]">
+                        {plan.highlights.map((feat) => (
+                          <li
+                            key={feat}
+                            className="flex items-start gap-2 text-xs text-ink-secondary leading-snug"
+                          >
+                            <CheckIcon
+                              size={14}
+                              className="text-cobalt-600 shrink-0 mt-0.5"
+                            />
+                            <span>{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <Link
+                      href="/signup"
+                      className={`inline-flex items-center justify-center rounded-control px-4 py-2.5 text-xs font-medium transition-colors ${
+                        isPopular
+                          ? "bg-cobalt-600 hover:bg-cobalt-700 text-white"
+                          : "border border-black/[0.13] bg-canvas hover:bg-surface-subtle text-ink"
+                      }`}
+                    >
+                      {plan.customPrice ? "Request custom workspace" : "Start 14-day trial"}
+                    </Link>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
