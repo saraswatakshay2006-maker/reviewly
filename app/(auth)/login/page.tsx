@@ -28,7 +28,7 @@ export default function LoginPage() {
         setError(data.error || "Sign in failed. Check your email and password.");
         return;
       }
-      router.push("/app");
+      router.push(data.user?.role === "super_admin" ? "/admin" : "/app");
       router.refresh();
     } catch {
       setError("Network error while connecting. Check your connection and try again.");

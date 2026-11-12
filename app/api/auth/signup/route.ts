@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { hashPassword, signSession, sessionCookieName } from "@/lib/auth";
+import {
+  hashPassword,
+  signSession,
+  sessionCookieName,
+  verifyOrgSignupCode,
+} from "@/lib/auth";
 import { createOrganization, createUser, getUserByEmail } from "@/lib/repo";
 import { cookies } from "next/headers";
 
@@ -9,6 +14,7 @@ const schema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
   orgName: z.string().min(1).max(80),
+  orgCode: z.string().min(1).max(128),
 });
 
 export async function POST(req: NextRequest) {
@@ -23,6 +29,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Invalid input", details: parsed.error.flatten() },
       { status: 400 }
+    );
+  }
+
+  if (!(await verifyOrgSignupCode(parsed.data.orgCode))) {
+    return NextResponse.json(
+      { error: "Invalid organisation code. Account was not created." },
+      { status: 403 }
     );
   }
 

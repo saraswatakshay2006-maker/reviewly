@@ -5,6 +5,7 @@ import {
   getOrganizationById,
   feedbackForBusiness,
 } from "@/lib/repo";
+import { PLAN_DEFAULTS, resolveSubscription } from "@/lib/subscriptions";
 import DashboardShell from "@/components/DashboardShell";
 
 export default async function DashboardLayout({
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
   }
 
   const org = await getOrganizationById(user.organizationId);
+  const sub = org ? resolveSubscription(org) : null;
   const businesses = await listBusinessesForOrg(user.organizationId);
   const primaryBiz = businesses[0] ?? null;
 
@@ -39,6 +41,9 @@ export default async function DashboardLayout({
       orgName={org?.name || "My Workspace"}
       userName={user.name}
       userEmail={user.email}
+      isSuperAdmin={user.role === "super_admin"}
+      subscriptionPlan={sub ? PLAN_DEFAULTS[sub.plan].label : "Starter"}
+      subscriptionStatus={sub?.status || "active"}
       businessSlug={primaryBiz?.publicSlug ?? null}
       businessName={primaryBiz?.name ?? null}
       pendingFeedbackCount={pendingFeedbackCount}

@@ -8,8 +8,15 @@ import StorageModeNotice from "@/components/StorageModeNotice";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "", orgName: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    orgName: "",
+    orgCode: "",
+  });
   const [showPassword, setShowPassword] = useState(false);
+  const [showOrgCode, setShowOrgCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -122,6 +129,32 @@ export default function SignupPage() {
               className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 inline-flex items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-surface-subtle transition-colors"
             >
               {showPassword ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-ink-secondary mb-1.5" htmlFor="orgCode">
+            Organisation code
+          </label>
+          <div className="relative">
+            <input
+              id="orgCode"
+              type={showOrgCode ? "text" : "password"}
+              autoComplete="off"
+              className={`${field} pr-11`}
+              value={form.orgCode}
+              onChange={(e) => setForm({ ...form, orgCode: e.target.value })}
+              placeholder="Enter private organisation code"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowOrgCode((v) => !v)}
+              aria-label={showOrgCode ? "Hide organisation code" : "Show organisation code"}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 inline-flex items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-surface-subtle transition-colors"
+            >
+              {showOrgCode ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
             </button>
           </div>
         </div>

@@ -13,12 +13,29 @@ import {
   listBusinessesForOrg,
   feedbackForBusiness,
   updateFeedbackReply,
+  getOrganizationById,
+  listCardsForBusiness,
 } from "@/lib/repo";
+import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
 import { generateCardToken } from "@/lib/tokens";
+
+async function assertWorkspaceWritable(organizationId: string, role: string) {
+  if (role === "super_admin") return null;
+  const org = await getOrganizationById(organizationId);
+  if (!org) return null;
+  const sub = resolveSubscription(org);
+  if (!isSubscriptionActive(sub.status)) {
+    throw new Error(
+      "Your workspace subscription is currently paused or cancelled. Contact your administrator to reactivate."
+    );
+  }
+  return sub;
+}
 
 export async function saveBusinessAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  await assertWorkspaceWritable(user.organizationId, user.role);
 
   const name = String(formData.get("name") || "").trim();
   const category = String(formData.get("category") || "").trim();
@@ -78,11 +95,22 @@ export async function saveBusinessAction(formData: FormData) {
 export async function createCardAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const sub = await assertWorkspaceWritable(user.organizationId, user.role);
 
   const businessId = String(formData.get("businessId") || "");
   const business = await getBusinessById(businessId);
   if (!business || business.organizationId !== user.organizationId) {
     throw new Error("Business not found");
+  }
+
+  if (sub) {
+    const existingCards = await listCardsForBusiness(business.id);
+    const activeCount = existingCards.filter((c) => c.status === "active").length;
+    if (activeCount >= sub.cardLimit) {
+      throw new Error(
+        `Active card limit reached (${sub.cardLimit} on your current plan). Ask your administrator to upgrade your plan.`
+      );
+    }
   }
 
   const label = String(formData.get("label") || "").trim() || "Counter NFC Card";

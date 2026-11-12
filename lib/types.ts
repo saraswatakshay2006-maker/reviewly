@@ -11,11 +11,30 @@ export interface User {
   createdAt: string;
 }
 
+export type SubscriptionPlan = "trial" | "starter" | "growth" | "pro" | "enterprise";
+export type SubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "suspended"
+  | "cancelled";
+
+export interface OrganizationSubscription {
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  monthlyPriceInr: number;
+  cardLimit: number;
+  renewalDate: string | null;
+  notes: string;
+  updatedAt: string;
+}
+
 export interface Organization {
   id: string;
   name: string;
   slug: string;
   createdAt: string;
+  subscription?: OrganizationSubscription;
 }
 
 export interface Business {
