@@ -734,19 +734,27 @@ function ClientOrganizationCard({
     setSaving(true);
     try {
       let nextRenewalIso: string | null = null;
+      let effectiveNextStatus = status;
       if (renewalDate.trim()) {
         const dt = new Date(renewalDate);
         if (Number.isNaN(dt.getTime())) {
           throw new Error("Invalid renewal date & time.");
         }
         nextRenewalIso = dt.toISOString();
+        const graceMs = Math.max(0, gracePeriodDays) * 86_400_000;
+        if (
+          Date.now() >= dt.getTime() + graceMs &&
+          (effectiveNextStatus === "active" || effectiveNextStatus === "trialing" || effectiveNextStatus === "past_due")
+        ) {
+          effectiveNextStatus = "expired";
+        }
       }
       const res = await fetch(`/api/admin/organizations/${org.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan,
-          status,
+          status: effectiveNextStatus,
           monthlyPriceInr: Number(price) || 0,
           cardLimit: Number(cardLimit) < 0 ? -1 : Math.max(1, Number(cardLimit) || 1),
           locationLimit:

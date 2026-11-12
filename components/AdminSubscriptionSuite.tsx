@@ -1082,6 +1082,17 @@ function SubscriptionsManagerPanel({
   );
 }
 
+function toLocalDatetimeInputValue(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const ts = Date.parse(raw);
+  if (!Number.isFinite(ts)) return "";
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
 function SubscriptionActionPanel({
   sub,
   plans,
@@ -1103,6 +1114,7 @@ function SubscriptionActionPanel({
     | "reactivate"
     | "grant_trial"
     | "set_custom_expiry"
+    | "expire_now"
     | "assign_enterprise"
     | "update_entitlements"
     | "cancel"
@@ -1114,7 +1126,7 @@ function SubscriptionActionPanel({
   const [amountInr, setAmountInr] = useState<number>(sub.amountInr);
   const [extendDays, setExtendDays] = useState<number>(30);
   const [customExpiryLocal, setCustomExpiryLocal] = useState<string>(() =>
-    sub.currentPeriodEnd ? sub.currentPeriodEnd.slice(0, 16) : ""
+    toLocalDatetimeInputValue(sub.currentPeriodEnd)
   );
   const [cancelImmediately, setCancelImmediately] = useState(false);
   const [ovLoc, setOvLoc] = useState<string>(
@@ -1155,6 +1167,7 @@ function SubscriptionActionPanel({
   const requiresConfirmation = [
     "activate_manual",
     "suspend",
+    "expire_now",
     "cancel",
     "assign_enterprise",
   ].includes(action);
@@ -1255,6 +1268,7 @@ function SubscriptionActionPanel({
             <option value="change_plan">Change Plan</option>
             <option value="grant_trial">Grant / Extend Free Trial (+ days)</option>
             <option value="set_custom_expiry">Set Custom Expiry Timestamp</option>
+            <option value="expire_now">Expire Now (locks review page immediately)</option>
             <option value="assign_enterprise">Assign Custom Enterprise Deal</option>
             <option value="update_entitlements">Override Custom Limits / Entitlements</option>
             <option value="suspend">Suspend Subscription (blocks review page)</option>

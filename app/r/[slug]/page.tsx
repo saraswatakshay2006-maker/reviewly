@@ -135,6 +135,8 @@ export default async function PublicLandingPage({
               sessionId={session.id}
               primaryColor={brandHex}
               googleReviewUrl={business.googleReviewUrl}
+              expiresAtIso={entitlements?.subscription.currentPeriodEnd ?? null}
+              gracePeriodDays={entitlements?.settings.gracePeriodDays ?? 0}
             />
           </div>
         </article>

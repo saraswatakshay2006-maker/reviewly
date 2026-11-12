@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
@@ -18,12 +19,14 @@ import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function CardsPage({
   searchParams,
 }: {
   searchParams: Promise<{ biz?: string }>;
 }) {
+  noStore();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

@@ -179,6 +179,11 @@ export default function DashboardShell({
             >
               <ClockIcon size={11} className="shrink-0" />
               <span className="truncate">
+                {health?.isUsable && health.hasExpiry && health.remainingDays !== null
+                  ? `${health.remainingDays} ${
+                      health.remainingDays === 1 ? "day" : "days"
+                    } left · `
+                  : ""}
                 <RenewalCountdownBadge
                   renewalDate={subscription.renewalDate}
                   gracePeriodDays={gracePeriodDays}

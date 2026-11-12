@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentUser, sessionCookieName } from "@/lib/auth";
 import {
   getOrganizationEntitlements,
@@ -10,12 +11,14 @@ import DashboardShell from "@/components/DashboardShell";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  noStore();
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login");

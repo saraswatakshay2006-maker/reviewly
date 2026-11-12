@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
@@ -19,12 +20,14 @@ import BusinessSettingsForm from "./BusinessSettingsForm";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ biz?: string; new?: string }>;
 }) {
+  noStore();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -107,11 +110,10 @@ export default async function SettingsPage({
                 <Link
                   key={b.id}
                   href={`/app/settings?biz=${encodeURIComponent(b.id)}`}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-                    selected
-                      ? "bg-cobalt-600 text-white"
-                      : "bg-canvas border border-black/[0.08] text-ink-secondary hover:text-ink"
-                  }`}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${selected
+                    ? "bg-cobalt-600 text-white"
+                    : "bg-canvas border border-black/[0.08] text-ink-secondary hover:text-ink"
+                    }`}
                 >
                   {b.name}
                 </Link>

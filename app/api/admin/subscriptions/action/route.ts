@@ -15,6 +15,7 @@ const actionSchema = z.object({
     "reactivate",
     "grant_trial",
     "set_custom_expiry",
+    "expire_now",
     "assign_enterprise",
     "update_entitlements",
     "cancel",

@@ -1002,6 +1002,7 @@ export type AdminSubscriptionActionType =
   | "reactivate"
   | "grant_trial"
   | "set_custom_expiry"
+  | "expire_now"
   | "assign_enterprise"
   | "update_entitlements"
   | "cancel";
@@ -1169,6 +1170,12 @@ export async function applyAdminSubscriptionAction(params: {
         } else if (sub.status === "expired") {
           sub.status = sub.planId === "trial" ? "trialing" : "active";
         }
+        break;
+      }
+      case "expire_now": {
+        sub.status = "expired";
+        sub.currentPeriodEnd = nowIso;
+        sub.cancelAtPeriodEnd = false;
         break;
       }
       case "assign_enterprise": {

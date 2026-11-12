@@ -447,6 +447,23 @@ export function migrateDBInPlace(db: DB): DB {
   }
 
   // Backfill normalized SubscriptionRecord entries for existing organizations
+  const anchorDefaultExpiryIso = (
+    startAt: string,
+    planId: string,
+    trialDays: number
+  ): string => {
+    const startMs = Date.parse(startAt);
+    const baseMs = Number.isFinite(startMs) ? startMs : Date.now();
+    const days = planId === "trial" ? Math.max(1, trialDays || 14) : 30;
+    return new Date(baseMs + days * 86_400_000).toISOString();
+  };
+
+  const isClientOrg = (orgId: string): boolean => {
+    const orgUsers = db.users.filter((u) => u.organizationId === orgId);
+    if (orgUsers.length === 0) return true;
+    return !orgUsers.every((u) => u.role === "super_admin");
+  };
+
   const orgsWithSub = new Set(db.subscriptions.map((s) => s.organizationId));
   for (const org of db.organizations) {
     if (orgsWithSub.has(org.id)) continue;
@@ -458,7 +475,10 @@ export function migrateDBInPlace(db: DB): DB {
       DEFAULT_PLAN_RECORDS[1];
     const primaryBiz = db.businesses.find((b) => b.organizationId === org.id);
     const startAt = org.createdAt || new Date().toISOString();
-    const endIso = normalizeRenewalEnd(legacy?.renewalDate);
+    let endIso = normalizeRenewalEnd(legacy?.renewalDate);
+    if (endIso === null && planId !== "enterprise" && isClientOrg(org.id)) {
+      endIso = anchorDefaultExpiryIso(startAt, planId, plan.trialDays);
+    }
     const nowMs = Date.now();
     const isPastEnd =
       endIso !== null &&
@@ -513,6 +533,35 @@ export function migrateDBInPlace(db: DB): DB {
       updatedAt: legacy?.updatedAt || startAt,
     };
     db.subscriptions.push(subRec);
+  }
+
+  // Ensure previously auto-backfilled client subscriptions or trials without an expiry date
+  // receive a finite cycle end unless Super Admin explicitly cleared expiry or assigned Enterprise.
+  const nowCheckMs = Date.now();
+  const graceMs = Math.max(0, db.platformSettings.gracePeriodDays) * 86_400_000;
+  for (const sub of db.subscriptions) {
+    if (sub.currentPeriodEnd !== null || sub.planId === "enterprise") continue;
+    if (sub.status === "suspended" || sub.status === "cancelled") continue;
+    if (!isClientOrg(sub.organizationId)) continue;
+    const isAutoBackfill = sub.id === `sub_${sub.organizationId}` || sub.planId === "trial";
+    if (!isAutoBackfill) continue;
+    const hasAdminExpiryOverride = db.subscriptionAuditLogs.some(
+      (l) =>
+        l.organizationId === sub.organizationId &&
+        (l.action === "admin_set_custom_expiry" || l.action === "admin_update_subscription")
+    );
+    if (hasAdminExpiryOverride) continue;
+    const plan = db.plans.find((p) => p.id === sub.planId);
+    const anchorIso = sub.currentPeriodStart || sub.startAt || sub.createdAt;
+    const endIso = anchorDefaultExpiryIso(anchorIso, sub.planId, plan?.trialDays ?? 14);
+    sub.currentPeriodEnd = endIso;
+    if (sub.planId === "trial" && !sub.trialEnd) {
+      sub.trialEnd = endIso;
+    }
+    const endMs = Date.parse(endIso);
+    if (Number.isFinite(endMs) && nowCheckMs >= endMs + graceMs) {
+      sub.status = "expired";
+    }
   }
 
   return db;

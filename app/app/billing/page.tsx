@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentUser, isOwnerOrAdminRole } from "@/lib/auth";
 import { getOwnerBillingOverview } from "@/lib/billing";
 import { syncExpiredSubscriptions } from "@/lib/entitlements";
@@ -7,12 +8,14 @@ import BillingPortalClient from "@/components/BillingPortalClient";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function BillingPage({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
+  noStore();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

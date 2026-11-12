@@ -182,6 +182,19 @@ export default function PlanInfoCard({
                 >
                   {statusMeta.label}
                 </span>
+                {health.hasExpiry && health.isUsable && health.remainingDays !== null && (
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+                      health.expiringSoon
+                        ? "border-amber-200 bg-amber-50 text-amber-800"
+                        : "border-blue-200 bg-blue-50 text-blue-800"
+                    }`}
+                  >
+                    {health.remainingDays === 0
+                      ? "Expires today"
+                      : `${health.remainingDays} ${health.remainingDays === 1 ? "day" : "days"} left`}
+                  </span>
+                )}
                 <span className="rounded-md bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-ink-secondary">
                   {effectiveSupport}
                 </span>
@@ -250,7 +263,7 @@ export default function PlanInfoCard({
           <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
             <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
               <ClockIcon size={13} />
-              <span>Time remaining</span>
+              <span>Days left / Time remaining</span>
             </p>
             <p
               className={`text-xs sm:text-sm font-semibold mt-1 tabular-nums ${
@@ -261,10 +274,21 @@ export default function PlanInfoCard({
                     : "text-ink"
               }`}
             >
-              <RenewalCountdownBadge
-                renewalDate={subscription.renewalDate}
-                gracePeriodDays={gracePeriodDays}
-              />
+              {health.hasExpiry && health.isUsable && health.remainingDays !== null ? (
+                <span>
+                  {health.remainingDays === 0
+                    ? "Expires today"
+                    : `${health.remainingDays} ${health.remainingDays === 1 ? "day" : "days"} left`}
+                  <span className="block text-[11px] font-normal text-ink-muted mt-0.5">
+                    {health.countdownLabel}
+                  </span>
+                </span>
+              ) : (
+                <RenewalCountdownBadge
+                  renewalDate={subscription.renewalDate}
+                  gracePeriodDays={gracePeriodDays}
+                />
+              )}
             </p>
           </div>
 

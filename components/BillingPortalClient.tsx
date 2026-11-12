@@ -468,6 +468,36 @@ export default function BillingPortalClient({
       {/* TAB 1: MY PLAN */}
       {tab === "plan" && (
         <div className="space-y-5">
+          {sub.isUsable && sub.remainingDays !== null && (
+            <div
+              className={`rounded-card border px-4 py-3 text-xs flex flex-wrap items-center justify-between gap-2 ${
+                sub.remainingDays <= 3
+                  ? "border-amber-200 bg-amber-50/80 text-amber-900"
+                  : "border-emerald-200 bg-emerald-50/70 text-emerald-900"
+              }`}
+            >
+              <span>
+                <strong>
+                  {sub.remainingDays === 1 ? "1 day left" : `${sub.remainingDays} days left`}
+                </strong>{" "}
+                in your current {sub.planName} period
+                {sub.currentPeriodEnd ? ` (renews/expires ${fmtDate(sub.currentPeriodEnd)})` : ""}.
+                After expiry, your public review page stops automatically until renewed.
+              </span>
+              <span className="font-semibold tabular-nums">
+                {sub.countdownLabel}
+              </span>
+            </div>
+          )}
+
+          {!sub.isUsable && (
+            <div className="rounded-card border border-red-200 bg-red-50/80 px-4 py-3 text-xs text-red-900 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <strong>Subscription expired</strong> — your public customer review page is paused until you renew or upgrade below.
+              </span>
+            </div>
+          )}
+
           <section className="rounded-card bg-white border border-black/[0.09] p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -551,15 +581,22 @@ export default function BillingPortalClient({
               <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
                 <p className="text-[11px] text-ink-muted flex items-center gap-1">
                   <ClockIcon size={12} />
-                  <span>Time Remaining</span>
+                  <span>Days Left / Time Remaining</span>
                 </p>
                 <p
                   className={`text-sm font-semibold mt-1 tabular-nums ${
                     sub.expired ? "text-red-700" : "text-ink"
                   }`}
                 >
-                  {sub.countdownLabel}
+                  {sub.isUsable && sub.currentPeriodEnd && sub.remainingDays !== null
+                    ? `${sub.remainingDays} ${sub.remainingDays === 1 ? "day" : "days"} left`
+                    : sub.countdownLabel}
                 </p>
+                {sub.isUsable && sub.currentPeriodEnd && (
+                  <p className="text-[11px] text-ink-muted mt-0.5 tabular-nums">
+                    {sub.countdownLabel}
+                  </p>
+                )}
               </div>
               <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
                 <p className="text-[11px] text-ink-muted flex items-center gap-1">

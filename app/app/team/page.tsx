@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentUser, isOwnerOrAdminRole } from "@/lib/auth";
 import {
   getOrganizationEntitlements,
@@ -10,8 +11,10 @@ import TeamManagementClient from "@/components/TeamManagementClient";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function TeamPage() {
+  noStore();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

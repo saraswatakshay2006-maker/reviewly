@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getContrastInk, normalizeHex } from "@/lib/color";
+import { parseRenewalTimestamp } from "@/lib/subscriptions";
 import {
   extractOpeningKey,
   generateUniqueBusinessReview,
@@ -44,6 +45,8 @@ export default function RatingExperienceClient({
   sessionId,
   primaryColor,
   googleReviewUrl,
+  expiresAtIso = null,
+  gracePeriodDays = 0,
 }: {
   businessId: string;
   businessName: string;
@@ -53,10 +56,35 @@ export default function RatingExperienceClient({
   sessionId: string;
   primaryColor: string;
   googleReviewUrl: string;
+  expiresAtIso?: string | null;
+  gracePeriodDays?: number;
 }) {
+  const [expiredLocked, setExpiredLocked] = useState(false);
   const [stage, setStage] = useState<Stage>("rating");
   const [selected, setSelected] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
+
+  useEffect(() => {
+    const endMs = parseRenewalTimestamp(expiresAtIso);
+    if (endMs === null) return;
+    const cutoffMs = endMs + Math.max(0, gracePeriodDays) * 86_400_000;
+    const check = () => {
+      if (Date.now() >= cutoffMs) {
+        setExpiredLocked(true);
+        return true;
+      }
+      return false;
+    };
+    if (check()) return;
+    const msLeft = cutoffMs - Date.now();
+    const timeoutId =
+      msLeft <= 2_147_483_647 ? window.setTimeout(check, msLeft + 50) : null;
+    const intervalId = window.setInterval(check, 15_000);
+    return () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, [expiresAtIso, gracePeriodDays]);
 
   // Auto-generated unique business-oriented review state
   const [draftOpen, setDraftOpen] = useState(true);
@@ -119,7 +147,7 @@ export default function RatingExperienceClient({
     rating?: number
   ) => {
     try {
-      await fetch("/api/events", {
+      const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -129,6 +157,9 @@ export default function RatingExperienceClient({
           rating: rating ?? null,
         }),
       });
+      if (res.status === 403) {
+        setExpiredLocked(true);
+      }
     } catch {
       // Analytics must never interrupt the customer flow
     }
@@ -253,6 +284,22 @@ export default function RatingExperienceClient({
   };
 
   const activeDisplay = hovered ?? selected ?? 0;
+
+  if (expiredLocked) {
+    return (
+      <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50/70 p-5 text-center space-y-2">
+        <span className="inline-flex items-center rounded-full bg-white border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+          Service paused
+        </span>
+        <h2 className="font-display text-base font-semibold text-ink">
+          Review page temporarily unavailable
+        </h2>
+        <p className="text-xs text-ink-secondary leading-relaxed">
+          This business&apos;s subscription has expired. Please contact {businessName} directly for assistance.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-6">
@@ -548,6 +595,7 @@ export default function RatingExperienceClient({
             brandHex={brandHex}
             brandInk={brandInk}
             initialDraft={userEditedDraft ? activeGoogleText : ""}
+            onExpired={() => setExpiredLocked(true)}
           />
         </div>
       )}
@@ -563,6 +611,7 @@ function PrivateFeedback({
   brandHex,
   brandInk,
   initialDraft,
+  onExpired,
 }: {
   businessId: string;
   businessName: string;
@@ -571,6 +620,7 @@ function PrivateFeedback({
   brandHex: string;
   brandInk: string;
   initialDraft?: string;
+  onExpired?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -602,6 +652,10 @@ function PrivateFeedback({
           rating,
         }),
       });
+      if (res.status === 403) {
+        onExpired?.();
+        return;
+      }
       if (!res.ok) throw new Error();
       setStatus("done");
     } catch {
