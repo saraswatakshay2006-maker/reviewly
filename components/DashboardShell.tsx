@@ -8,6 +8,7 @@ import CopyButton from "./CopyButton";
 import {
   ArrowUpRightIcon,
   CloseIcon,
+  ClockIcon,
   CreditCardIcon,
   LayoutGridIcon,
   LogOutIcon,
@@ -16,7 +17,9 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
 } from "./Icons";
-import type { SubscriptionStatus } from "@/lib/types";
+import { getSubscriptionHealth } from "@/lib/subscriptions";
+import { RenewalCountdownBadge, RenewalDateTimeValue } from "./RenewalTimeText";
+import type { OrganizationSubscription } from "@/lib/types";
 
 interface DashboardShellProps {
   orgName: string;
@@ -24,7 +27,8 @@ interface DashboardShellProps {
   userEmail: string;
   isSuperAdmin?: boolean;
   subscriptionPlan?: string;
-  subscriptionStatus?: SubscriptionStatus;
+  subscription?: OrganizationSubscription | null;
+  serverNowMs?: number;
   businessSlug: string | null;
   businessName: string | null;
   pendingFeedbackCount: number;
@@ -38,7 +42,8 @@ export default function DashboardShell({
   userEmail,
   isSuperAdmin = false,
   subscriptionPlan = "Starter",
-  subscriptionStatus = "active",
+  subscription = null,
+  serverNowMs = 0,
   businessSlug,
   businessName,
   pendingFeedbackCount,
@@ -47,6 +52,20 @@ export default function DashboardShell({
 }: DashboardShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [nowMs, setNowMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNowMs(Date.now());
+    const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [subscription?.renewalDate, subscription?.status]);
+
+  const health = subscription
+    ? getSubscriptionHealth(subscription, nowMs ?? serverNowMs)
+    : null;
+  const effectiveStatus = health?.effectiveStatus ?? "active";
+  const isLive = health ? health.isUsable : true;
+  const isExpired = health?.expired ?? false;
 
   useEffect(() => {
     setMobileOpen(false);
@@ -95,28 +114,45 @@ export default function DashboardShell({
         </div>
 
         {/* Active Organization / Business Chip */}
-        <div className="rounded-xl bg-canvas border border-black/[0.07] px-3.5 py-3">
+        <div className="rounded-xl bg-canvas border border-black/[0.07] px-3.5 py-3 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] font-medium text-ink-muted">Workspace</p>
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                subscriptionStatus === "active"
+                effectiveStatus === "active"
                   ? "bg-emerald-50 text-emerald-700"
-                  : subscriptionStatus === "trialing"
+                  : effectiveStatus === "trialing"
                   ? "bg-cobalt-50 text-cobalt-700"
-                  : subscriptionStatus === "past_due"
+                  : effectiveStatus === "past_due"
                   ? "bg-amber-50 text-amber-700"
                   : "bg-red-50 text-red-700"
               }`}
             >
               {subscriptionPlan}
+              {effectiveStatus === "expired" ? " · Expired" : ""}
             </span>
           </div>
-          <p className="text-sm font-semibold text-ink truncate mt-0.5">
+          <p className="text-sm font-semibold text-ink truncate">
             {businessName || orgName}
           </p>
           {businessName && businessName !== orgName && (
             <p className="text-xs text-ink-muted truncate">{orgName}</p>
+          )}
+          {subscription?.renewalDate && (
+            <p
+              className={`pt-1 flex items-center gap-1 text-[11px] ${
+                isExpired
+                  ? "text-red-700 font-medium"
+                  : health?.expiringSoon
+                  ? "text-amber-700 font-medium"
+                  : "text-ink-muted"
+              }`}
+            >
+              <ClockIcon size={11} className="shrink-0" />
+              <span className="truncate">
+                <RenewalCountdownBadge renewalDate={subscription.renewalDate} />
+              </span>
+            </p>
           )}
         </div>
 
@@ -174,10 +210,17 @@ export default function DashboardShell({
               <span className="text-[11px] font-medium text-ink-secondary">
                 Live review page
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Active
-              </span>
+              {isLive ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                  {isExpired ? "Expired" : "Paused"}
+                </span>
+              )}
             </div>
             <p className="font-mono text-xs text-ink truncate">{publicPath}</p>
             <div className="flex items-center gap-1.5">
@@ -269,16 +312,39 @@ export default function DashboardShell({
       {/* Main Content Workspace */}
       <main className="flex-1 min-w-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
-          {(subscriptionStatus === "suspended" || subscriptionStatus === "cancelled") &&
-            !isSuperAdmin && (
-              <div
-                role="alert"
-                className="mb-6 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-800 leading-relaxed"
-              >
-                Your workspace subscription ({subscriptionPlan}) is currently{" "}
-                <strong className="font-semibold">{subscriptionStatus}</strong>. Profile edits, new card issuance, and public review intake are paused until reactivated by your SaaS administrator.
-              </div>
-            )}
+          {!isLive && !isSuperAdmin && (
+            <div
+              role="alert"
+              className="mb-6 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-800 leading-relaxed"
+            >
+              {isExpired ? (
+                <>
+                  Your <strong>{subscriptionPlan}</strong> plan expired on{" "}
+                  <strong className="font-semibold">
+                    <RenewalDateTimeValue renewalDate={subscription?.renewalDate} />
+                  </strong>
+                  . Your customer review page is closed and workspace edits are paused until your SaaS administrator renews your plan.
+                </>
+              ) : (
+                <>
+                  Your workspace subscription ({subscriptionPlan}) is currently{" "}
+                  <strong className="font-semibold">{effectiveStatus}</strong>. Profile edits, new card issuance, and public review intake are paused until reactivated by your SaaS administrator.
+                </>
+              )}
+            </div>
+          )}
+          {isLive && health?.expiringSoon && !isSuperAdmin && (
+            <div
+              role="status"
+              className="mb-6 rounded-card border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 leading-relaxed"
+            >
+              Your <strong>{subscriptionPlan}</strong> plan renews / expires on{" "}
+              <strong className="font-semibold">
+                <RenewalDateTimeValue renewalDate={subscription?.renewalDate} />
+              </strong>{" "}
+              (<RenewalCountdownBadge renewalDate={subscription?.renewalDate} />). Renew on time to keep your customer review page live.
+            </div>
+          )}
           {children}
         </div>
       </main>

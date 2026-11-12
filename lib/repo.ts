@@ -1,6 +1,7 @@
 import { readDB, writeDB, uid } from "./db";
 import {
   createDefaultTrialSubscription,
+  isSubscriptionActive,
   resolveSubscription,
 } from "./subscriptions";
 import type {
@@ -457,13 +458,23 @@ export const getSaasSnapshot = () =>
 
     const summary = {
       totalOrgs: clientOrgs.length,
-      activeOrgs: clientOrgs.filter((o) => o.subscription.status === "active").length,
-      trialOrgs: clientOrgs.filter((o) => o.subscription.status === "trialing").length,
-      pausedOrPastDueOrgs: clientOrgs.filter((o) =>
-        ["past_due", "suspended", "cancelled"].includes(o.subscription.status)
+      activeOrgs: clientOrgs.filter(
+        (o) => isSubscriptionActive(o.subscription) && o.subscription.status === "active"
+      ).length,
+      trialOrgs: clientOrgs.filter(
+        (o) => isSubscriptionActive(o.subscription) && o.subscription.status === "trialing"
+      ).length,
+      pausedOrPastDueOrgs: clientOrgs.filter(
+        (o) =>
+          !isSubscriptionActive(o.subscription) ||
+          o.subscription.status === "past_due"
       ).length,
       mrrInr: clientOrgs
-        .filter((o) => ["active", "trialing", "past_due"].includes(o.subscription.status))
+        .filter(
+          (o) =>
+            isSubscriptionActive(o.subscription) &&
+            ["active", "trialing", "past_due"].includes(o.subscription.status)
+        )
         .reduce((sum, o) => sum + (o.subscription.monthlyPriceInr || 0), 0),
       totalUsers: db.users.length,
       totalBusinesses: db.businesses.length,

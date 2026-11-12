@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { notFound } from "next/navigation";
-import { getCardByToken, getBusinessById } from "@/lib/repo";
+import { getCardByToken, getBusinessById, getOrganizationById } from "@/lib/repo";
+import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
 
 /**
  * NFC token resolution. A physical card's NFC payload points here. We resolve the
@@ -33,6 +34,15 @@ export async function GET(
       );
     }
     notFound();
+  }
+  if (wantsJson) {
+    const org = await getOrganizationById(business.organizationId);
+    if (org && !isSubscriptionActive(resolveSubscription(org))) {
+      return NextResponse.json(
+        { error: "Review page closed: subscription expired or paused" },
+        { status: 403 }
+      );
+    }
   }
   const url = `/r/${business.publicSlug}?src=nfc`;
   return NextResponse.redirect(new URL(url, req.url));

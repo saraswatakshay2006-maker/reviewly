@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { addEvent, addFeedback, getSessionById } from "@/lib/repo";
+import { addEvent, addFeedback, getOrganizationById, getSessionById } from "@/lib/repo";
+import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
 
 const bodySchema = z.object({
   sessionId: z.string(),
@@ -25,6 +26,14 @@ export async function POST(req: NextRequest) {
   const session = await getSessionById(parsed.data.sessionId);
   if (!session || session.businessId !== parsed.data.businessId) {
     return NextResponse.json({ error: "Unknown session" }, { status: 400 });
+  }
+
+  const org = await getOrganizationById(session.organizationId);
+  if (org && !isSubscriptionActive(resolveSubscription(org))) {
+    return NextResponse.json(
+      { error: "Review page is unavailable because the subscription has expired or is paused." },
+      { status: 403 }
+    );
   }
 
   const feedback = await addFeedback({

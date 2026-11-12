@@ -1,10 +1,15 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { getBusinessBySlug, getOrganizationById, createSession } from "@/lib/repo";
-import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
+import {
+  getSubscriptionHealth,
+  resolveSubscription,
+} from "@/lib/subscriptions";
 import { getContrastInk, normalizeHex, rgbaFromHex } from "@/lib/color";
 import RatingExperienceClient from "./RatingExperienceClient";
 import PlatformSignature from "@/components/PlatformSignature";
+
+export const dynamic = "force-dynamic";
 
 export default async function PublicLandingPage({
   params,
@@ -13,22 +18,31 @@ export default async function PublicLandingPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ src?: string }>;
 }) {
+  const hdrs = await headers();
   const { slug } = await params;
   const { src } = await searchParams;
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
 
   const org = await getOrganizationById(business.organizationId);
-  if (org && !isSubscriptionActive(resolveSubscription(org).status)) {
+  const sub = org ? resolveSubscription(org) : null;
+  const health = sub ? getSubscriptionHealth(sub) : null;
+
+  if (health && !health.isUsable) {
     return (
       <main className="min-h-screen flex flex-col bg-canvas">
         <div className="flex-1 w-full max-w-[440px] mx-auto px-4 py-12 flex items-center justify-center">
-          <div className="w-full rounded-[22px] bg-white border border-black/[0.09] shadow-elevated p-8 text-center space-y-2">
+          <div className="w-full rounded-[22px] bg-white border border-black/[0.09] shadow-elevated p-8 text-center space-y-3">
+            <span className="inline-flex items-center rounded-full bg-red-50 border border-red-200 px-3 py-1 text-[11px] font-semibold text-red-700">
+              {health.expired ? "Plan expired" : "Temporarily paused"}
+            </span>
             <h1 className="font-display text-xl font-semibold text-ink">
               {business.name}
             </h1>
-            <p className="text-sm text-ink-secondary">
-              This review page is temporarily paused. Please check back later or contact the business directly.
+            <p className="text-sm text-ink-secondary leading-relaxed">
+              {health.expired
+                ? "This review page is currently closed because the business's subscription plan has expired. Please contact the business directly."
+                : "This review page is temporarily paused. Please check back later or contact the business directly."}
             </p>
           </div>
         </div>
@@ -39,7 +53,6 @@ export default async function PublicLandingPage({
     );
   }
 
-  const hdrs = await headers();
   const ua = hdrs.get("user-agent") || "";
   const deviceType = /iPhone|Android|Mobile/i.test(ua) ? "mobile" : "desktop";
 

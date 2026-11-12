@@ -5,8 +5,12 @@ import {
   listBusinessesForOrg,
   analyticsForBusiness,
   getBusinessById,
+  getOrganizationById,
+  listCardsForBusiness,
 } from "@/lib/repo";
+import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
 import CopyButton from "@/components/CopyButton";
+import PlanInfoCard from "@/components/PlanInfoCard";
 import {
 
   ArrowUpRightIcon,
@@ -27,53 +31,74 @@ export default async function DashboardOverview() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const businesses = await listBusinessesForOrg(user.organizationId);
+  const [org, businesses] = await Promise.all([
+    getOrganizationById(user.organizationId),
+    listBusinessesForOrg(user.organizationId),
+  ]);
+  const sub = org ? resolveSubscription(org) : null;
+  const nowMs = Date.now();
+  const isPlanUsable = sub ? isSubscriptionActive(sub, nowMs) : true;
+
   if (businesses.length === 0) {
     return (
-      <div className="rounded-card bg-white border border-black/[0.09] p-8 sm:p-12 shadow-panel max-w-2xl mx-auto mt-4">
-        <div className="h-11 w-11 rounded-xl bg-cobalt-50 text-cobalt-600 flex items-center justify-center mb-5">
-          <SettingsIcon size={20} />
-        </div>
-        <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
-          Configure your first business
-        </h1>
-        <p className="text-sm text-ink-secondary mt-2 leading-relaxed max-w-lg">
-          Set your business name, brand color, and official Google review link to generate your customer landing page, QR code, and NFC card tokens.
-        </p>
+      <div className="space-y-6 max-w-3xl mx-auto mt-2">
+        {sub && (
+          <PlanInfoCard
+            subscription={sub}
+            activeCards={0}
+            orgName={org?.name}
+            serverNowMs={nowMs}
+          />
+        )}
+        <div className="rounded-card bg-white border border-black/[0.09] p-8 sm:p-12 shadow-panel">
+          <div className="h-11 w-11 rounded-xl bg-cobalt-50 text-cobalt-600 flex items-center justify-center mb-5">
+            <SettingsIcon size={20} />
+          </div>
+          <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
+            Configure your first business
+          </h1>
+          <p className="text-sm text-ink-secondary mt-2 leading-relaxed max-w-lg">
+            Set your business name, brand color, and official Google review link to generate your customer landing page, QR code, and NFC card tokens.
+          </p>
 
-        <div className="mt-6 grid sm:grid-cols-3 gap-3 text-left">
-          {[
-            { step: "1", title: "Business profile", desc: "Name, slug, and Google URL" },
-            { step: "2", title: "Cards & QR", desc: "Generate tap tokens & print QR" },
-            { step: "3", title: "Live telemetry", desc: "Track scans & private notes" },
-          ].map((item) => (
-            <div
-              key={item.step}
-              className="rounded-xl border border-black/[0.08] bg-canvas p-3.5"
-            >
-              <span className="font-mono text-xs font-semibold text-cobalt-600">
-                0{item.step}
-              </span>
-              <p className="text-sm font-medium text-ink mt-1">{item.title}</p>
-              <p className="text-xs text-ink-muted mt-0.5">{item.desc}</p>
-            </div>
-          ))}
-        </div>
+          <div className="mt-6 grid sm:grid-cols-3 gap-3 text-left">
+            {[
+              { step: "1", title: "Business profile", desc: "Name, slug, and Google URL" },
+              { step: "2", title: "Cards & QR", desc: "Generate tap tokens & print QR" },
+              { step: "3", title: "Live telemetry", desc: "Track scans & private notes" },
+            ].map((item) => (
+              <div
+                key={item.step}
+                className="rounded-xl border border-black/[0.08] bg-canvas p-3.5"
+              >
+                <span className="font-mono text-xs font-semibold text-cobalt-600">
+                  0{item.step}
+                </span>
+                <p className="text-sm font-medium text-ink mt-1">{item.title}</p>
+                <p className="text-xs text-ink-muted mt-0.5">{item.desc}</p>
+              </div>
+            ))}
+          </div>
 
-        <Link
-          href="/app/settings"
-          className="inline-flex items-center justify-center gap-2 mt-7 rounded-control bg-cobalt-600 hover:bg-cobalt-700 px-5 py-3 text-sm font-medium text-white transition-colors"
-        >
-          <span>Set up business profile</span>
-          <ArrowUpRightIcon size={16} />
-        </Link>
+          <Link
+            href="/app/settings"
+            className="inline-flex items-center justify-center gap-2 mt-7 rounded-control bg-cobalt-600 hover:bg-cobalt-700 px-5 py-3 text-sm font-medium text-white transition-colors"
+          >
+            <span>Set up business profile</span>
+            <ArrowUpRightIcon size={16} />
+          </Link>
+        </div>
       </div>
     );
   }
 
   const business = await getBusinessById(businesses[0].id);
   if (!business) redirect("/app/settings");
-  const a = await analyticsForBusiness(business.id);
+  const [a, cards] = await Promise.all([
+    analyticsForBusiness(business.id),
+    listCardsForBusiness(business.id),
+  ]);
+  const activeCards = cards.filter((c) => c.status === "active").length;
 
   const directVisits = Math.max(0, a.totalSessions - a.scans);
   const totalRatings = Object.values(a.ratingDistribution).reduce((x, y) => x + y, 0);
@@ -162,13 +187,27 @@ export default async function DashboardOverview() {
             href={publicPath}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-control bg-cobalt-600 hover:bg-cobalt-700 px-4 py-2 text-xs sm:text-sm font-medium text-white transition-colors"
+            className={`inline-flex items-center gap-1.5 rounded-control px-4 py-2 text-xs sm:text-sm font-medium transition-colors ${
+              isPlanUsable
+                ? "bg-cobalt-600 hover:bg-cobalt-700 text-white"
+                : "bg-red-50 border border-red-200 text-red-700 hover:bg-red-100"
+            }`}
           >
-            <span>Open live page</span>
+            <span>{isPlanUsable ? "Open live page" : "Review page closed"}</span>
             <ArrowUpRightIcon size={15} />
           </Link>
         </div>
       </div>
+
+      {/* Plan & Renewal Info */}
+      {sub && (
+        <PlanInfoCard
+          subscription={sub}
+          activeCards={activeCards}
+          orgName={org?.name}
+          serverNowMs={nowMs}
+        />
+      )}
 
       {/* Primary KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

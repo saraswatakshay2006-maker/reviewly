@@ -16,7 +16,11 @@ import {
 import {
   PLAN_DEFAULTS,
   SUBSCRIPTION_STATUSES,
+  getSubscriptionHealth,
+  parseRenewalTimestamp,
+  type EffectiveSubscriptionStatus,
 } from "@/lib/subscriptions";
+import { RenewalCountdownBadge } from "./RenewalTimeText";
 import type {
   OrganizationSubscription,
   Role,
@@ -129,13 +133,24 @@ export interface AdminSnapshot {
 
 type AdminTab = "clients" | "users" | "businesses" | "activity";
 
-const STATUS_BADGE: Record<SubscriptionStatus, string> = {
+const STATUS_BADGE: Record<EffectiveSubscriptionStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
   trialing: "bg-cobalt-50 text-cobalt-700 border-cobalt-200",
   past_due: "bg-amber-50 text-amber-800 border-amber-200",
+  expired: "bg-red-50 text-red-700 border-red-200",
   suspended: "bg-red-50 text-red-700 border-red-200",
   cancelled: "bg-surface-subtle text-ink-muted border-black/[0.08]",
 };
+
+function toLocalDatetimeInputValue(raw: string | null | undefined): string {
+  const ts = parseRenewalTimestamp(raw);
+  if (ts === null) return "";
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
 
 export default function AdminDashboardClient({
   initialData,
@@ -153,7 +168,7 @@ export default function AdminDashboardClient({
   const [data, setData] = useState<AdminSnapshot>(initialData);
   const [tab, setTab] = useState<AdminTab>("clients");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | SubscriptionStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | EffectiveSubscriptionStatus>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -183,8 +198,11 @@ export default function AdminDashboardClient({
 
   const filteredOrgs = useMemo(() => {
     return data.organizations.filter((o) => {
-      if (statusFilter !== "all" && o.subscription.status !== statusFilter) {
-        return false;
+      if (statusFilter !== "all") {
+        const eff = getSubscriptionHealth(o.subscription).effectiveStatus;
+        if (eff !== statusFilter && o.subscription.status !== statusFilter) {
+          return false;
+        }
       }
       if (!q) return true;
       const haystack = [
@@ -385,7 +403,7 @@ export default function AdminDashboardClient({
                 aria-label="Filter by subscription status"
                 value={statusFilter}
                 onChange={(e) =>
-                  setStatusFilter(e.target.value as "all" | SubscriptionStatus)
+                  setStatusFilter(e.target.value as "all" | EffectiveSubscriptionStatus)
                 }
                 className="min-h-[38px] rounded-control border border-black/[0.12] bg-white px-3 text-xs font-medium text-ink outline-none focus:border-cobalt-600"
               >
@@ -395,6 +413,7 @@ export default function AdminDashboardClient({
                     {s.label}
                   </option>
                 ))}
+                <option value="expired">Expired</option>
               </select>
             )}
 
@@ -606,13 +625,25 @@ function ClientOrganizationCard({
   const [status, setStatus] = useState<SubscriptionStatus>(org.subscription.status);
   const [price, setPrice] = useState<number>(org.subscription.monthlyPriceInr);
   const [cardLimit, setCardLimit] = useState<number>(org.subscription.cardLimit);
-  const [renewalDate, setRenewalDate] = useState<string>(
-    org.subscription.renewalDate ? org.subscription.renewalDate.slice(0, 10) : ""
+  const [renewalDate, setRenewalDate] = useState<string>(() =>
+    toLocalDatetimeInputValue(org.subscription.renewalDate)
   );
   const [notes, setNotes] = useState<string>(org.subscription.notes || "");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const renewalIsoPreview = useMemo(() => {
+    if (!renewalDate.trim()) return null;
+    const parsed = new Date(renewalDate);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }, [renewalDate]);
+
+  const health = getSubscriptionHealth({
+    ...org.subscription,
+    status,
+    renewalDate: renewalIsoPreview,
+  });
 
   const handlePlanChange = (nextPlan: SubscriptionPlan) => {
     setPlan(nextPlan);
@@ -624,6 +655,14 @@ function ClientOrganizationCard({
     e.preventDefault();
     setSaving(true);
     try {
+      let nextRenewalIso: string | null = null;
+      if (renewalDate.trim()) {
+        const dt = new Date(renewalDate);
+        if (Number.isNaN(dt.getTime())) {
+          throw new Error("Invalid renewal date & time.");
+        }
+        nextRenewalIso = dt.toISOString();
+      }
       const res = await fetch(`/api/admin/organizations/${org.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -632,7 +671,7 @@ function ClientOrganizationCard({
           status,
           monthlyPriceInr: Number(price) || 0,
           cardLimit: Math.max(1, Number(cardLimit) || 1),
-          renewalDate: renewalDate.trim() || null,
+          renewalDate: nextRenewalIso,
           notes: notes.trim(),
         }),
       });
@@ -675,10 +714,19 @@ function ClientOrganizationCard({
               {org.name}
             </h3>
             <span
-              className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[status]}`}
+              className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[health.effectiveStatus]}`}
             >
-              {PLAN_DEFAULTS[plan].label} · {status.replace("_", " ")}
+              {PLAN_DEFAULTS[plan].label} · {health.effectiveStatus.replace("_", " ")}
             </span>
+            {renewalIsoPreview && (
+              <span
+                className={`text-[11px] font-medium ${
+                  health.expired ? "text-red-700" : "text-ink-muted"
+                }`}
+              >
+                <RenewalCountdownBadge renewalDate={renewalIsoPreview} />
+              </span>
+            )}
             {isCurrentAdminOrg && (
               <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[10px] font-medium text-ink-secondary">
                 Your admin workspace
@@ -784,10 +832,10 @@ function ClientOrganizationCard({
 
         <div>
           <label className="block text-[11px] font-medium text-ink-muted mb-1">
-            Renewal / Expiry
+            Renewal / Expiry Time
           </label>
           <input
-            type="date"
+            type="datetime-local"
             value={renewalDate}
             onChange={(e) => setRenewalDate(e.target.value)}
             className={inputCls}

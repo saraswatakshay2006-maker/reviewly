@@ -43,7 +43,8 @@ export default async function DashboardLayout({
       userEmail={user.email}
       isSuperAdmin={user.role === "super_admin"}
       subscriptionPlan={sub ? PLAN_DEFAULTS[sub.plan].label : "Starter"}
-      subscriptionStatus={sub?.status || "active"}
+      subscription={sub}
+      serverNowMs={Date.now()}
       businessSlug={primaryBiz?.publicSlug ?? null}
       businessName={primaryBiz?.name ?? null}
       pendingFeedbackCount={pendingFeedbackCount}

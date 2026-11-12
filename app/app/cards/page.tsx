@@ -6,8 +6,10 @@ import { getEnv } from "@/lib/cloudflare";
 import {
   listBusinessesForOrg,
   getBusinessById,
+  getOrganizationById,
   listCardsForBusiness,
 } from "@/lib/repo";
+import { PLAN_DEFAULTS, resolveSubscription } from "@/lib/subscriptions";
 import CardsStudioClient from "@/components/CardsStudioClient";
 
 
@@ -16,8 +18,12 @@ export default async function CardsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const businesses = await listBusinessesForOrg(user.organizationId);
+  const [org, businesses] = await Promise.all([
+    getOrganizationById(user.organizationId),
+    listBusinessesForOrg(user.organizationId),
+  ]);
   const business = businesses[0] ? await getBusinessById(businesses[0].id) : null;
+  const sub = org ? resolveSubscription(org) : null;
 
   if (!business) {
     return (
@@ -36,6 +42,7 @@ export default async function CardsPage() {
   }
 
   const cards = await listCardsForBusiness(business.id);
+  const activeCards = cards.filter((c) => c.status === "active").length;
   const hdrs = await headers();
   const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
   const proto = hdrs.get("x-forwarded-proto") || (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
@@ -43,13 +50,23 @@ export default async function CardsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="no-print pb-5 border-b border-black/[0.08]">
-        <h1 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
-          Cards &amp; QR studio
-        </h1>
-        <p className="text-sm text-ink-secondary mt-1">
-          Issue dynamic NFC card tokens and download or print your counter QR stand.
-        </p>
+      <div className="no-print pb-5 border-b border-black/[0.08] flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+            Cards &amp; QR studio
+          </h1>
+          <p className="text-sm text-ink-secondary mt-1">
+            Issue dynamic NFC card tokens and download or print your counter QR stand.
+          </p>
+        </div>
+        {sub && (
+          <div className="inline-flex items-center gap-2 rounded-lg border border-black/[0.08] bg-white px-3 py-1.5 text-xs text-ink-secondary self-start sm:self-auto tabular-nums">
+            <span className="font-medium text-ink">{PLAN_DEFAULTS[sub.plan].label}:</span>
+            <span>
+              {activeCards} / {sub.cardLimit} active cards
+            </span>
+          </div>
+        )}
       </div>
 
       <CardsStudioClient business={business} cards={cards} appUrl={appUrl} />

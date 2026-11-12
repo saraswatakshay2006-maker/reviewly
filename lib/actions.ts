@@ -24,9 +24,9 @@ async function assertWorkspaceWritable(organizationId: string, role: string) {
   const org = await getOrganizationById(organizationId);
   if (!org) return null;
   const sub = resolveSubscription(org);
-  if (!isSubscriptionActive(sub.status)) {
+  if (!isSubscriptionActive(sub)) {
     throw new Error(
-      "Your workspace subscription is currently paused or cancelled. Contact your administrator to reactivate."
+      "Your workspace subscription is expired, paused, or cancelled. Contact your administrator to renew or reactivate."
     );
   }
   return sub;
