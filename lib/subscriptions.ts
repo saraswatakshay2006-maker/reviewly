@@ -579,6 +579,7 @@ export interface ExpiryNotificationBanner {
     | "expires_1d"
     | "expires_3d"
     | "expires_7d"
+    | "days_remaining"
     | "renewed";
   title: string;
   message: string;
@@ -586,6 +587,7 @@ export interface ExpiryNotificationBanner {
 
 export function getExpiryNotificationBanner(params: {
   subscription: OrganizationSubscription & { cancelAtPeriodEnd?: boolean };
+  planName?: string | null;
   settings?: Partial<PlatformBillingSettings> | null;
   lastPaidAt?: string | null;
   nowMs?: number;
@@ -628,6 +630,9 @@ export function getExpiryNotificationBanner(params: {
 
   if (health.hasExpiry && health.remainingMs !== null) {
     const daysLeft = health.remainingDays ?? 0;
+    const planLabel = params.planName?.trim() || "subscription";
+    const daysLabel =
+      daysLeft === 0 ? "Expires today" : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`;
     const reminders = [...(params.settings?.reminderDays ?? [7, 3, 1])].sort(
       (a, b) => a - b
     );
@@ -639,13 +644,33 @@ export function getExpiryNotificationBanner(params: {
           code,
           title:
             daysLeft <= 1
-              ? "Subscription expires within 24 hours"
-              : `Subscription expires in ${daysLeft} days`,
+              ? `${daysLeft === 0 ? "Subscription expires today" : "1 day left on your " + planLabel + " plan"}`
+              : `${daysLeft} days left on your ${planLabel} plan`,
           message:
-            "Renew before expiry to keep your NFC/QR review pages live without interruption.",
+            `${health.countdownLabel}. Renew before expiry or your public customer review page will close automatically.`,
         };
       }
     }
+
+    if (params.lastPaidAt) {
+      const paidAgeMs = nowMs - Date.parse(params.lastPaidAt);
+      if (Number.isFinite(paidAgeMs) && paidAgeMs >= 0 && paidAgeMs <= 48 * 60 * 60 * 1000) {
+        return {
+          level: "success",
+          code: "renewed",
+          title: `Subscription active — ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left on your ${planLabel} plan`,
+          message:
+            "Payment verified. Your public customer review page and paid entitlements remain live until expiry.",
+        };
+      }
+    }
+
+    return {
+      level: "info",
+      code: "days_remaining",
+      title: `${daysLabel} on your ${planLabel} plan`,
+      message: `${health.countdownLabel}. Your public customer review page stays open until expiry and closes automatically once expired.`,
+    };
   }
 
   if (params.lastPaidAt) {

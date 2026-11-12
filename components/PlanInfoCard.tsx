@@ -376,16 +376,42 @@ export default function PlanInfoCard({
           </div>
         )}
 
-        {health.isUsable && health.expiringSoon && (
+        {health.isUsable && health.hasExpiry && (
           <div
             role="status"
-            className="rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs text-amber-900 leading-relaxed"
+            className={`rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed ${
+              health.expiringSoon
+                ? "border-amber-200 bg-amber-50/80 text-amber-900"
+                : "border-blue-200/80 bg-blue-50/60 text-blue-900"
+            }`}
           >
-            Renewal reminder: your <strong>{effectiveLabel}</strong> plan expires on{" "}
-            <strong className="font-semibold">
-              <RenewalDateTimeValue renewalDate={subscription.renewalDate} />
-            </strong>{" "}
-            (<RenewalCountdownBadge renewalDate={subscription.renewalDate} gracePeriodDays={gracePeriodDays} />). Renew before this time to keep your customer review page live.
+            {health.expiringSoon ? (
+              <>
+                Renewal reminder:{" "}
+                <strong>
+                  {health.remainingDays === 0
+                    ? "expires today"
+                    : `${health.remainingDays} ${health.remainingDays === 1 ? "day" : "days"} left`}
+                </strong>{" "}
+                on your <strong>{effectiveLabel}</strong> plan (ends{" "}
+                <strong className="font-semibold">
+                  <RenewalDateTimeValue renewalDate={subscription.renewalDate} />
+                </strong>
+                , <RenewalCountdownBadge renewalDate={subscription.renewalDate} gracePeriodDays={gracePeriodDays} />). Renew before expiry or your customer review page will close automatically.
+              </>
+            ) : (
+              <>
+                Subscription reminder:{" "}
+                <strong>
+                  {health.remainingDays ?? 0} {health.remainingDays === 1 ? "day" : "days"} left
+                </strong>{" "}
+                on your <strong>{effectiveLabel}</strong> plan — valid until{" "}
+                <strong className="font-semibold">
+                  <RenewalDateTimeValue renewalDate={subscription.renewalDate} />
+                </strong>{" "}
+                (<RenewalCountdownBadge renewalDate={subscription.renewalDate} gracePeriodDays={gracePeriodDays} />). Your customer review page stays active until expiry and closes automatically when expired.
+              </>
+            )}
           </div>
         )}
       </div>

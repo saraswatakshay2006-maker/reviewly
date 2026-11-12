@@ -248,7 +248,7 @@ export default function DashboardShell({
           <div className="rounded-xl border border-black/[0.08] bg-canvas p-3 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-medium text-ink-secondary">
-                Live review page
+                {isLive ? "Live review page" : "Review page paused"}
               </span>
               {isLive ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
@@ -264,15 +264,15 @@ export default function DashboardShell({
             </div>
             <p className="font-mono text-xs text-ink truncate">{publicPath}</p>
             <div className="flex items-center gap-1.5">
-              <Link
+              <a
                 href={publicPath}
                 target="_blank"
                 rel="noreferrer"
                 className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg bg-white border border-black/10 px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-surface-subtle transition-colors"
               >
-                <span>Open</span>
+                <span>{isLive ? "Open" : "Preview locked"}</span>
                 <ArrowUpRightIcon size={13} />
-              </Link>
+              </a>
               <CopyButton value={publicPath} label="Slug" />
             </div>
           </div>
@@ -323,15 +323,15 @@ export default function DashboardShell({
         </div>
 
         {publicPath && (
-          <Link
+          <a
             href={publicPath}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-canvas px-3 py-1.5 text-xs font-medium text-ink shrink-0"
           >
-            <span>Live page</span>
+            <span>{isLive ? "Live page" : "Page paused"}</span>
             <ArrowUpRightIcon size={13} />
-          </Link>
+          </a>
         )}
       </header>
 
@@ -386,6 +386,8 @@ export default function DashboardShell({
                   ? "border-emerald-200 bg-emerald-50 text-emerald-900"
                   : warningBanner.level === "error"
                   ? "border-red-200 bg-red-50 text-red-900"
+                  : warningBanner.level === "info"
+                  ? "border-blue-200 bg-blue-50 text-blue-900"
                   : "border-amber-200 bg-amber-50 text-amber-900"
               }`}
             >

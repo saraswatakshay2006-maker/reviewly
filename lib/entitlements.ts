@@ -149,12 +149,13 @@ function buildContextFromDB(
       sub.status = org.subscription.status;
       sub.currentPeriodEnd = org.subscription.renewalDate ?? null;
     } else if (
-      org.subscription.status === "expired" &&
-      sub.status !== "expired" &&
-      sub.status !== "suspended" &&
+      (org.subscription.status === "expired" ||
+        org.subscription.status === "suspended" ||
+        org.subscription.status === "cancelled") &&
+      sub.status !== org.subscription.status &&
       (recEndMs === null || (legacyEndMs !== null && legacyEndMs <= recEndMs))
     ) {
-      sub.status = "expired";
+      sub.status = org.subscription.status;
     }
   }
 
@@ -195,6 +196,7 @@ function buildContextFromDB(
   const orgSummary = subscriptionRecordToOrgSummary(sub, plan);
   const warningBanner = getExpiryNotificationBanner({
     subscription: { ...orgSummary, cancelAtPeriodEnd: sub.cancelAtPeriodEnd },
+    planName: plan.name,
     settings,
     lastPaidAt: latestPaid?.paidAt ?? null,
     nowMs,
