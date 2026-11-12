@@ -478,8 +478,10 @@ export default function AdminDashboardClient({
             ) : (
               filteredOrgs.map((org) => (
                 <ClientOrganizationCard
-                  key={org.id}
+                  key={`${org.id}:${org.subscription.updatedAt}`}
                   org={org}
+                  plans={data.plans}
+                  gracePeriodDays={data.platformSettings.gracePeriodDays}
                   isCurrentAdminOrg={org.users.some((u) => u.id === currentAdminId)}
                   onSaved={async (msg) => {
                     notify("ok", msg);
@@ -647,11 +649,15 @@ export default function AdminDashboardClient({
 
 function ClientOrganizationCard({
   org,
+  plans,
+  gracePeriodDays,
   isCurrentAdminOrg,
   onSaved,
   onError,
 }: {
   org: AdminSnapshot["organizations"][number];
+  plans: AdminPlanView[];
+  gracePeriodDays: number;
   isCurrentAdminOrg: boolean;
   onSaved: (msg: string) => Promise<void>;
   onError: (msg: string) => void;
@@ -661,10 +667,16 @@ function ClientOrganizationCard({
   const [price, setPrice] = useState<number>(org.subscription.monthlyPriceInr);
   const [cardLimit, setCardLimit] = useState<number>(org.subscription.cardLimit);
   const [locationLimit, setLocationLimit] = useState<number>(
-    org.subscription.locationLimit ?? PLAN_DEFAULTS[org.subscription.plan].locationLimit
+    org.subscription.locationLimit ??
+      plans.find((p) => p.id === org.subscription.plan)?.maxLocations ??
+      PLAN_DEFAULTS[org.subscription.plan]?.locationLimit ??
+      1
   );
   const [teamLimit, setTeamLimit] = useState<number>(
-    org.subscription.teamLimit ?? PLAN_DEFAULTS[org.subscription.plan].teamLimit
+    org.subscription.teamLimit ??
+      plans.find((p) => p.id === org.subscription.plan)?.maxTeamMembers ??
+      PLAN_DEFAULTS[org.subscription.plan]?.teamLimit ??
+      1
   );
   const [renewalDate, setRenewalDate] = useState<string>(() =>
     toLocalDatetimeInputValue(org.subscription.renewalDate)
@@ -674,24 +686,43 @@ function ClientOrganizationCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const selectedPlanObj = plans.find((p) => p.id === plan);
+  const selectedPlanLabel =
+    selectedPlanObj?.name || PLAN_DEFAULTS[plan]?.label || plan;
+
   const renewalIsoPreview = useMemo(() => {
     if (!renewalDate.trim()) return null;
     const parsed = new Date(renewalDate);
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }, [renewalDate]);
 
-  const health = getSubscriptionHealth({
-    ...org.subscription,
-    status,
-    renewalDate: renewalIsoPreview,
-  });
+  const health = getSubscriptionHealth(
+    {
+      ...org.subscription,
+      status,
+      renewalDate: renewalIsoPreview,
+    },
+    Date.now(),
+    gracePeriodDays
+  );
 
   const handlePlanChange = (nextPlan: SubscriptionPlan) => {
     setPlan(nextPlan);
-    setPrice(PLAN_DEFAULTS[nextPlan].monthlyPriceInr);
-    setCardLimit(PLAN_DEFAULTS[nextPlan].cardLimit);
-    setLocationLimit(PLAN_DEFAULTS[nextPlan].locationLimit);
-    setTeamLimit(PLAN_DEFAULTS[nextPlan].teamLimit);
+    const dbPlan = plans.find((p) => p.id === nextPlan);
+    if (dbPlan) {
+      setPrice(dbPlan.monthlyPriceInr);
+      setCardLimit(dbPlan.maxCards);
+      setLocationLimit(dbPlan.maxLocations);
+      setTeamLimit(dbPlan.maxTeamMembers);
+      return;
+    }
+    const fallback = PLAN_DEFAULTS[nextPlan];
+    if (fallback) {
+      setPrice(fallback.monthlyPriceInr);
+      setCardLimit(fallback.cardLimit);
+      setLocationLimit(fallback.locationLimit);
+      setTeamLimit(fallback.teamLimit);
+    }
   };
 
   const saveSubscription = async (e: React.FormEvent) => {
@@ -713,9 +744,10 @@ function ClientOrganizationCard({
           plan,
           status,
           monthlyPriceInr: Number(price) || 0,
-          cardLimit: Math.max(1, Number(cardLimit) || 1),
-          locationLimit: Math.max(1, Number(locationLimit) || 1),
-          teamLimit: Math.max(1, Number(teamLimit) || 1),
+          cardLimit: Number(cardLimit) < 0 ? -1 : Math.max(1, Number(cardLimit) || 1),
+          locationLimit:
+            Number(locationLimit) < 0 ? -1 : Math.max(1, Number(locationLimit) || 1),
+          teamLimit: Number(teamLimit) < 0 ? -1 : Math.max(1, Number(teamLimit) || 1),
           renewalDate: nextRenewalIso,
           notes: notes.trim(),
         }),
@@ -761,7 +793,7 @@ function ClientOrganizationCard({
             <span
               className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[health.effectiveStatus]}`}
             >
-              {PLAN_DEFAULTS[plan].label} · {health.effectiveStatus.replace("_", " ")}
+              {selectedPlanLabel} · {health.effectiveStatus.replace("_", " ")}
             </span>
             {renewalIsoPreview && (
               <span
@@ -769,7 +801,10 @@ function ClientOrganizationCard({
                   health.expired ? "text-red-700" : "text-ink-muted"
                 }`}
               >
-                <RenewalCountdownBadge renewalDate={renewalIsoPreview} />
+                <RenewalCountdownBadge
+                  renewalDate={renewalIsoPreview}
+                  gracePeriodDays={gracePeriodDays}
+                />
               </span>
             )}
             {isCurrentAdminOrg && (
@@ -786,13 +821,16 @@ function ClientOrganizationCard({
 
         <div className="flex flex-wrap items-center gap-4 text-xs text-ink-secondary tabular-nums">
           <span>
-            Locations: <strong className="text-ink">{org.businesses.length}</strong>/{locationLimit}
+            Locations: <strong className="text-ink">{org.businesses.length}</strong>/
+            {locationLimit < 0 ? "∞" : locationLimit}
           </span>
           <span>
-            Team: <strong className="text-ink">{org.users.length}</strong>/{teamLimit}
+            Team: <strong className="text-ink">{org.users.length}</strong>/
+            {teamLimit < 0 ? "∞" : teamLimit}
           </span>
           <span>
-            Cards: <strong className="text-ink">{org.stats.activeCards}</strong>/{cardLimit}
+            Cards: <strong className="text-ink">{org.stats.activeCards}</strong>/
+            {cardLimit < 0 ? "∞" : cardLimit}
           </span>
           <span>
             Visits: <strong className="text-ink">{org.stats.sessions}</strong>
@@ -830,9 +868,9 @@ function ClientOrganizationCard({
             onChange={(e) => handlePlanChange(e.target.value as SubscriptionPlan)}
             className={inputCls}
           >
-            {(Object.keys(PLAN_DEFAULTS) as SubscriptionPlan[]).map((key) => (
-              <option key={key} value={key}>
-                {PLAN_DEFAULTS[key].label}
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>
@@ -870,11 +908,11 @@ function ClientOrganizationCard({
 
         <div>
           <label className="block text-[11px] font-medium text-ink-muted mb-1">
-            Card Limit
+            Card Limit (-1 = Unlimited)
           </label>
           <input
             type="number"
-            min={1}
+            min={-1}
             value={cardLimit}
             onChange={(e) => setCardLimit(Number(e.target.value))}
             className={`${inputCls} tabular-nums`}
@@ -883,11 +921,11 @@ function ClientOrganizationCard({
 
         <div>
           <label className="block text-[11px] font-medium text-ink-muted mb-1">
-            Locations Limit
+            Locations Limit (-1 = Unlimited)
           </label>
           <input
             type="number"
-            min={1}
+            min={-1}
             value={locationLimit}
             onChange={(e) => setLocationLimit(Number(e.target.value))}
             className={`${inputCls} tabular-nums`}
@@ -896,11 +934,11 @@ function ClientOrganizationCard({
 
         <div>
           <label className="block text-[11px] font-medium text-ink-muted mb-1">
-            Team Accounts Limit
+            Team Accounts Limit (-1 = Unlimited)
           </label>
           <input
             type="number"
-            min={1}
+            min={-1}
             value={teamLimit}
             onChange={(e) => setTeamLimit(Number(e.target.value))}
             className={`${inputCls} tabular-nums`}

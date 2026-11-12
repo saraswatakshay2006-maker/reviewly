@@ -3,7 +3,10 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getEnv } from "@/lib/cloudflare";
-import { getOrganizationEntitlements } from "@/lib/entitlements";
+import {
+  getOrganizationEntitlements,
+  syncExpiredSubscriptions,
+} from "@/lib/entitlements";
 import {
   getBusinessById,
   listCardsForBusiness,
@@ -11,6 +14,10 @@ import {
 } from "@/lib/repo";
 import CardsStudioClient from "@/components/CardsStudioClient";
 import LocationSwitcher from "@/components/LocationSwitcher";
+import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function CardsPage({
   searchParams,
@@ -21,12 +28,37 @@ export default async function CardsPage({
   if (!user) redirect("/login");
 
   const { biz: requestedBiz } = await searchParams;
+  await syncExpiredSubscriptions(user.organizationId);
   const [ctx, locState] = await Promise.all([
     getOrganizationEntitlements(user.organizationId),
     resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
   ]);
   const { businesses, active } = locState;
   const business = active ? await getBusinessById(active.id) : null;
+  const isUsable = ctx ? ctx.isUsable : true;
+
+  if (!isUsable && ctx) {
+    return (
+      <div className="space-y-6">
+        <div className="no-print pb-5 border-b border-black/[0.08]">
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+            Cards &amp; QR studio
+          </h1>
+          <p className="text-sm text-ink-secondary mt-1">
+            Issue dynamic NFC card tokens and download or print your counter QR stand.
+          </p>
+        </div>
+        <SubscriptionLockedGate
+          sectionName="Cards & QR Studio"
+          planName={ctx.plan.name}
+          effectiveStatus={ctx.effectiveStatus}
+          renewalDate={ctx.subscription.currentPeriodEnd}
+          isSuperAdmin={user.role === "super_admin"}
+          statsSummary={`${businesses.length} location${businesses.length === 1 ? "" : "s"}`}
+        />
+      </div>
+    );
+  }
 
   if (!business) {
     return (

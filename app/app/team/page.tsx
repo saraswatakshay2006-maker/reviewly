@@ -1,17 +1,26 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isOwnerOrAdminRole } from "@/lib/auth";
-import { getOrganizationEntitlements } from "@/lib/entitlements";
+import {
+  getOrganizationEntitlements,
+  syncExpiredSubscriptions,
+} from "@/lib/entitlements";
 import { listUsersForOrg } from "@/lib/repo";
+import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
 import TeamManagementClient from "@/components/TeamManagementClient";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function TeamPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
+  await syncExpiredSubscriptions(user.organizationId);
   const [ctx, members] = await Promise.all([
     getOrganizationEntitlements(user.organizationId),
     listUsersForOrg(user.organizationId),
   ]);
+  const isPlanUsable = ctx ? ctx.isUsable : true;
 
   return (
     <div className="space-y-6">
@@ -25,14 +34,25 @@ export default async function TeamPage() {
         </p>
       </div>
 
-      <TeamManagementClient
-        initialMembers={members}
-        currentUserId={user.id}
-        canManage={isOwnerOrAdminRole(user.role)}
-        teamLimit={ctx?.limits.maxTeamMembers ?? 1}
-        planLabel={ctx?.plan.name ?? "Starter"}
-        isPlanUsable={ctx ? ctx.isUsable : true}
-      />
+      {!isPlanUsable && ctx ? (
+        <SubscriptionLockedGate
+          sectionName="Team Management"
+          planName={ctx.plan.name}
+          effectiveStatus={ctx.effectiveStatus}
+          renewalDate={ctx.subscription.currentPeriodEnd}
+          isSuperAdmin={user.role === "super_admin"}
+          statsSummary={`${members.length} team account${members.length === 1 ? "" : "s"}`}
+        />
+      ) : (
+        <TeamManagementClient
+          initialMembers={members}
+          currentUserId={user.id}
+          canManage={isOwnerOrAdminRole(user.role)}
+          teamLimit={ctx?.limits.maxTeamMembers ?? 1}
+          planLabel={ctx?.plan.name ?? "Starter"}
+          isPlanUsable={isPlanUsable}
+        />
+      )}
     </div>
   );
 }

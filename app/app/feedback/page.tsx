@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getOrganizationEntitlements } from "@/lib/entitlements";
+import {
+  getOrganizationEntitlements,
+  syncExpiredSubscriptions,
+} from "@/lib/entitlements";
 import {
   feedbackForBusiness,
   feedbackInsightsForBusiness,
@@ -10,7 +13,11 @@ import {
 } from "@/lib/repo";
 import FeedbackInboxClient from "@/components/FeedbackInboxClient";
 import LocationSwitcher from "@/components/LocationSwitcher";
+import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
 import { ArrowUpRightIcon, MessageSquareIcon } from "@/components/Icons";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function FeedbackPage({
   searchParams,
@@ -21,12 +28,36 @@ export default async function FeedbackPage({
   if (!user) redirect("/login");
 
   const { biz: requestedBiz } = await searchParams;
+  await syncExpiredSubscriptions(user.organizationId);
   const [ctx, locState] = await Promise.all([
     getOrganizationEntitlements(user.organizationId),
     resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
   ]);
   const { businesses, active } = locState;
   const business = active ? await getBusinessById(active.id) : null;
+  const isUsable = ctx ? ctx.isUsable : true;
+
+  if (!isUsable && ctx) {
+    return (
+      <div className="space-y-6">
+        <div className="pb-5 border-b border-black/[0.08]">
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+            Private feedback
+          </h1>
+          <p className="text-sm text-ink-secondary mt-1">
+            Honest customer notes shared privately with your team.
+          </p>
+        </div>
+        <SubscriptionLockedGate
+          sectionName="Private Feedback Inbox"
+          planName={ctx.plan.name}
+          effectiveStatus={ctx.effectiveStatus}
+          renewalDate={ctx.subscription.currentPeriodEnd}
+          isSuperAdmin={user.role === "super_admin"}
+        />
+      </div>
+    );
+  }
 
   if (!business) {
     return (
@@ -44,7 +75,6 @@ export default async function FeedbackPage({
     );
   }
 
-  const isUsable = ctx ? ctx.isUsable : true;
   const showInsights = isUsable && (ctx?.featureFlags.feedbackInsights ?? false);
   const canManageReplies =
     isUsable && (ctx?.featureFlags.feedbackMonitoringAndReplies ?? false);

@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
+  formatBillingIntervalLabel,
   getPlanEntitlements,
   getSubscriptionHealth,
   type EffectiveSubscriptionStatus,
 } from "@/lib/subscriptions";
-import type { OrganizationSubscription } from "@/lib/types";
+import type { BillingInterval, OrganizationSubscription } from "@/lib/types";
 import {
   BuildingIcon,
   CalendarIcon,
@@ -19,6 +20,14 @@ import {
   UsersIcon,
 } from "./Icons";
 import { RenewalCountdownBadge, RenewalDateTimeValue } from "./RenewalTimeText";
+
+export interface PlanFeatureDisplayItem {
+  key: string;
+  label: string;
+  enabled: boolean;
+  implemented: boolean;
+  availabilityStatus?: string;
+}
 
 const STATUS_META: Record<
   EffectiveSubscriptionStatus,
@@ -58,6 +67,10 @@ export default function PlanInfoCard({
   orgName,
   planLabel,
   supportTier,
+  billingInterval,
+  paymentStatus,
+  planHighlights,
+  featureItems,
   gracePeriodDays = 0,
   compact = false,
   serverNowMs,
@@ -69,6 +82,10 @@ export default function PlanInfoCard({
   orgName?: string;
   planLabel?: string;
   supportTier?: string;
+  billingInterval?: BillingInterval;
+  paymentStatus?: string;
+  planHighlights?: string[];
+  featureItems?: PlanFeatureDisplayItem[];
   gracePeriodDays?: number;
   compact?: boolean;
   serverNowMs?: number;
@@ -83,23 +100,48 @@ export default function PlanInfoCard({
 
   const effectiveNow =
     nowMs ?? serverNowMs ?? Date.parse(subscription.updatedAt) ?? 0;
-  const health = getSubscriptionHealth(subscription, effectiveNow, gracePeriodDays);
+  const health = getSubscriptionHealth(
+    subscription,
+    effectiveNow,
+    gracePeriodDays
+  );
   const planMeta = getPlanEntitlements(subscription);
   const effectiveLabel = planLabel || planMeta.label;
   const effectiveSupport = supportTier || planMeta.supportTier;
+  const effectiveInterval =
+    billingInterval ?? subscription.billingInterval ?? "monthly";
   const locLimit = subscription.locationLimit ?? planMeta.locationLimit;
   const teamLimit = subscription.teamLimit ?? planMeta.teamLimit;
   const cardLimit = subscription.cardLimit ?? planMeta.cardLimit;
   const statusMeta = STATUS_META[health.effectiveStatus];
+  const displayHighlights =
+    planHighlights && planHighlights.length > 0
+      ? planHighlights
+      : planMeta.highlights;
 
   const priceText =
     subscription.plan === "enterprise" && subscription.monthlyPriceInr === 0
       ? "Custom pricing"
       : subscription.monthlyPriceInr > 0
-      ? `₹${subscription.monthlyPriceInr.toLocaleString("en-IN")} / mo`
-      : subscription.plan === "trial"
-      ? "Free 14-day trial"
-      : "₹0 / mo";
+        ? `₹${subscription.monthlyPriceInr.toLocaleString("en-IN")} / ${
+            effectiveInterval === "annual"
+              ? "yr"
+              : effectiveInterval === "custom"
+                ? "custom"
+                : "mo"
+          }`
+        : subscription.plan === "trial"
+          ? "Free trial"
+          : "₹0 / mo";
+
+  const sourceBadge =
+    paymentStatus === "MANUAL"
+      ? "Managed by Super Admin"
+      : paymentStatus === "SUCCESS"
+        ? "Verified payment"
+        : subscription.plan === "trial"
+          ? "Free trial"
+          : null;
 
   return (
     <section
@@ -108,8 +150,8 @@ export default function PlanInfoCard({
         !health.isUsable
           ? "border-red-200"
           : health.expiringSoon
-          ? "border-amber-200"
-          : "border-black/[0.09]"
+            ? "border-amber-200"
+            : "border-black/[0.09]"
       }`}
     >
       <div className={compact ? "p-4 sm:p-5 space-y-4" : "p-5 sm:p-6 space-y-4"}>
@@ -120,8 +162,8 @@ export default function PlanInfoCard({
                 !health.isUsable
                   ? "bg-red-50 text-red-600"
                   : health.expiringSoon
-                  ? "bg-amber-50 text-amber-700"
-                  : "bg-cobalt-50 text-cobalt-600"
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-cobalt-50 text-cobalt-600"
               }`}
             >
               {!health.isUsable ? (
@@ -143,10 +185,15 @@ export default function PlanInfoCard({
                 <span className="rounded-md bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-ink-secondary">
                   {effectiveSupport}
                 </span>
+                {sourceBadge && (
+                  <span className="rounded-md bg-canvas border border-black/[0.07] px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+                    {sourceBadge}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-ink-muted mt-0.5">
                 {orgName ? `${orgName} · ` : ""}
-                {priceText}
+                {priceText} · {formatBillingIntervalLabel(effectiveInterval)}
                 {subscription.notes ? ` · ${subscription.notes}` : ""}
               </p>
             </div>
@@ -169,8 +216,8 @@ export default function PlanInfoCard({
                 {health.isUsable
                   ? "Customer review page live"
                   : health.expired
-                  ? "Review page closed (Plan expired)"
-                  : "Review page paused"}
+                    ? "Review page closed (Plan expired)"
+                    : `Review page paused (${statusMeta.label})`}
               </span>
             </div>
             <Link
@@ -210,11 +257,14 @@ export default function PlanInfoCard({
                 health.expired
                   ? "text-red-700"
                   : health.expiringSoon
-                  ? "text-amber-700"
-                  : "text-ink"
+                    ? "text-amber-700"
+                    : "text-ink"
               }`}
             >
-              <RenewalCountdownBadge renewalDate={subscription.renewalDate} />
+              <RenewalCountdownBadge
+                renewalDate={subscription.renewalDate}
+                gracePeriodDays={gracePeriodDays}
+              />
             </p>
           </div>
 
@@ -249,18 +299,56 @@ export default function PlanInfoCard({
           </div>
         </div>
 
-        {!compact && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {planMeta.highlights.map((feat) => (
-              <span
-                key={feat}
-                className="inline-flex items-center gap-1 rounded-md border border-black/[0.07] bg-canvas px-2.5 py-1 text-[11px] text-ink-secondary"
-              >
-                <CheckIcon size={11} className="text-emerald-600 shrink-0" />
-                <span>{feat}</span>
-              </span>
-            ))}
+        {!compact && featureItems && featureItems.length > 0 ? (
+          <div className="space-y-1.5 pt-1">
+            <p className="text-[11px] font-medium text-ink-muted">
+              Plan entitlements (synced with Super Admin configuration):
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {featureItems.map((feat) => {
+                const activeNow = health.isUsable && feat.enabled;
+                return (
+                  <span
+                    key={feat.key}
+                    className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] ${
+                      activeNow
+                        ? "border-emerald-200 bg-emerald-50/60 text-emerald-900"
+                        : !feat.implemented
+                          ? "border-amber-200/80 bg-amber-50/40 text-amber-900"
+                          : "border-black/[0.07] bg-canvas text-ink-muted"
+                    }`}
+                  >
+                    {activeNow ? (
+                      <CheckIcon size={11} className="text-emerald-600 shrink-0" />
+                    ) : (
+                      <LockIcon size={11} className="text-ink-muted shrink-0" />
+                    )}
+                    <span>{feat.label}</span>
+                    {!feat.implemented && (
+                      <span className="text-[10px] opacity-80">
+                        ({(feat.availabilityStatus || "coming_soon").replace("_", " ")})
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
           </div>
+        ) : (
+          !compact &&
+          displayHighlights.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {displayHighlights.map((feat) => (
+                <span
+                  key={feat}
+                  className="inline-flex items-center gap-1 rounded-md border border-black/[0.07] bg-canvas px-2.5 py-1 text-[11px] text-ink-secondary"
+                >
+                  <CheckIcon size={11} className="text-emerald-600 shrink-0" />
+                  <span>{feat}</span>
+                </span>
+              ))}
+            </div>
+          )
         )}
 
         {!health.isUsable && (
@@ -270,15 +358,19 @@ export default function PlanInfoCard({
           >
             {health.expired ? (
               <>
-                Your <strong>{planMeta.label}</strong> plan expired on{" "}
+                Your <strong>{effectiveLabel}</strong> plan expired on{" "}
                 <strong className="font-semibold">
                   <RenewalDateTimeValue renewalDate={subscription.renewalDate} />
                 </strong>
-                . Customers opening your review link or scanning your QR / NFC cards cannot submit reviews until your SaaS administrator renews your plan.
+                . Customers opening your review link or scanning QR / NFC cards see the paused notice, and workspace tools are locked until you renew in{" "}
+                <Link href="/app/billing?tab=upgrade" className="underline font-semibold">
+                  Subscription &amp; Billing
+                </Link>{" "}
+                or your SaaS administrator extends access.
               </>
             ) : (
               <>
-                Your subscription is currently <strong>{subscription.status}</strong>. Customer review intake and workspace edits are paused until reactivated by your SaaS administrator.
+                Your subscription status is currently <strong>{statusMeta.label}</strong>. Customer review intake and workspace tools are locked until renewed or reactivated.
               </>
             )}
           </div>
@@ -289,11 +381,11 @@ export default function PlanInfoCard({
             role="status"
             className="rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs text-amber-900 leading-relaxed"
           >
-            Renewal reminder: your <strong>{planMeta.label}</strong> plan expires on{" "}
+            Renewal reminder: your <strong>{effectiveLabel}</strong> plan expires on{" "}
             <strong className="font-semibold">
               <RenewalDateTimeValue renewalDate={subscription.renewalDate} />
             </strong>{" "}
-            (<RenewalCountdownBadge renewalDate={subscription.renewalDate} />). Renew before this time to keep your customer review page open.
+            (<RenewalCountdownBadge renewalDate={subscription.renewalDate} gracePeriodDays={gracePeriodDays} />). Renew before this time to keep your customer review page live.
           </div>
         )}
       </div>

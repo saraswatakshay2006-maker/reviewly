@@ -481,3 +481,23 @@ export async function canAccessPublicReviewPage(
   };
 }
 
+export function getPlanFeatureDisplayItems(ctx: ResolvedEntitlementContext) {
+  return FEATURE_CATALOG.map((meta) => {
+    const flagName = FEATURE_KEY_TO_FLAG[meta.key];
+    const enabled = meta.implemented
+      ? Boolean(ctx.featureFlags[flagName])
+      : false;
+    return {
+      key: meta.key,
+      label: meta.label,
+      enabled,
+      implemented: meta.implemented,
+      availabilityStatus: !meta.implemented
+        ? meta.defaultUnavailableStatus
+        : enabled
+          ? "active"
+          : "unavailable",
+    };
+  });
+}
+

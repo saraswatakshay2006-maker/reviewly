@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSuperAdmin } from "@/lib/auth";
 import {
   deleteOrganizationCascade,
+  listBusinessesForOrg,
   updateOrganizationSubscription,
 } from "@/lib/repo";
 
@@ -47,7 +49,21 @@ export async function PATCH(
 
   try {
     const org = await updateOrganizationSubscription(id, parsed.data);
-    return NextResponse.json({ ok: true, organization: org });
+    const businesses = await listBusinessesForOrg(id);
+    revalidatePath("/admin");
+    revalidatePath("/app");
+    revalidatePath("/app/billing");
+    revalidatePath("/app/cards");
+    revalidatePath("/app/feedback");
+    revalidatePath("/app/team");
+    revalidatePath("/app/settings");
+    for (const biz of businesses) {
+      revalidatePath(`/r/${biz.publicSlug}`);
+    }
+    return NextResponse.json(
+      { ok: true, organization: org },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 404 });
   }

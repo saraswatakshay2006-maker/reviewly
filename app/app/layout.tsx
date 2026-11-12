@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, sessionCookieName } from "@/lib/auth";
-import { getOrganizationEntitlements } from "@/lib/entitlements";
+import {
+  getOrganizationEntitlements,
+  syncExpiredSubscriptions,
+} from "@/lib/entitlements";
 import { feedbackForBusiness, listBusinessesForOrg } from "@/lib/repo";
 import { subscriptionRecordToOrgSummary } from "@/lib/subscriptions";
 import DashboardShell from "@/components/DashboardShell";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function DashboardLayout({
   children,
@@ -15,6 +21,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  await syncExpiredSubscriptions(user.organizationId);
   const [ctx, businesses] = await Promise.all([
     getOrganizationEntitlements(user.organizationId),
     listBusinessesForOrg(user.organizationId),

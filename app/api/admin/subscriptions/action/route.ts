@@ -66,8 +66,13 @@ export async function POST(req: NextRequest) {
       adminEmail: admin.email,
     });
     const businesses = await listBusinessesForOrg(parsed.data.organizationId);
+    revalidatePath("/admin");
     revalidatePath("/app");
     revalidatePath("/app/billing");
+    revalidatePath("/app/cards");
+    revalidatePath("/app/feedback");
+    revalidatePath("/app/team");
+    revalidatePath("/app/settings");
     for (const biz of businesses) {
       revalidatePath(`/r/${biz.publicSlug}`);
     }
@@ -79,4 +84,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
 }
-

@@ -55,9 +55,11 @@ export function RenewalDateTimeValue({
 
 export function RenewalCountdownBadge({
   renewalDate,
+  gracePeriodDays = 0,
   className = "",
 }: {
   renewalDate: string | null | undefined;
+  gracePeriodDays?: number;
   className?: string;
 }) {
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -77,7 +79,11 @@ export function RenewalCountdownBadge({
     );
   }
 
-  const { countdownLabel } = formatSubscriptionCountdown(renewalDate, nowMs);
+  const { countdownLabel } = formatSubscriptionCountdown(
+    renewalDate,
+    nowMs,
+    gracePeriodDays
+  );
   return <span className={className}>{countdownLabel}</span>;
 }
 

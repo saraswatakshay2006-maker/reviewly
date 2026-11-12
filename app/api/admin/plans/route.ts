@@ -64,7 +64,13 @@ export async function POST(req: NextRequest) {
   try {
     const out = await upsertPlanAdmin(parsed.data);
     revalidatePath("/");
+    revalidatePath("/admin");
+    revalidatePath("/app");
     revalidatePath("/app/billing");
+    revalidatePath("/app/cards");
+    revalidatePath("/app/feedback");
+    revalidatePath("/app/team");
+    revalidatePath("/app/settings");
     return NextResponse.json(
       { ok: true, ...out },
       { status: out.isNew ? 201 : 200, headers: { "Cache-Control": "no-store" } }
@@ -73,4 +79,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
 }
-

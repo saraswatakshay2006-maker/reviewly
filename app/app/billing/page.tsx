@@ -5,6 +5,9 @@ import { syncExpiredSubscriptions } from "@/lib/entitlements";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import BillingPortalClient from "@/components/BillingPortalClient";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function BillingPage({
   searchParams,
 }: {
@@ -40,4 +43,3 @@ export default async function BillingPage({
     </div>
   );
 }
-

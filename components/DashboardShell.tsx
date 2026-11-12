@@ -11,6 +11,7 @@ import {
   ClockIcon,
   CreditCardIcon,
   LayoutGridIcon,
+  LockIcon,
   LogOutIcon,
   MenuIcon,
   MessageSquareIcon,
@@ -149,7 +150,15 @@ export default function DashboardShell({
               }`}
             >
               {subscriptionPlan}
-              {effectiveStatus === "expired" ? " · Expired" : ""}
+              {effectiveStatus === "expired"
+                ? " · Expired"
+                : effectiveStatus === "suspended"
+                  ? " · Suspended"
+                  : effectiveStatus === "cancelled"
+                    ? " · Cancelled"
+                    : effectiveStatus === "past_due"
+                      ? " · Past due"
+                      : ""}
             </span>
           </div>
           <p className="text-sm font-semibold text-ink truncate">
@@ -170,7 +179,10 @@ export default function DashboardShell({
             >
               <ClockIcon size={11} className="shrink-0" />
               <span className="truncate">
-                <RenewalCountdownBadge renewalDate={subscription.renewalDate} />
+                <RenewalCountdownBadge
+                  renewalDate={subscription.renewalDate}
+                  gracePeriodDays={gracePeriodDays}
+                />
               </span>
             </p>
           )}
@@ -194,6 +206,7 @@ export default function DashboardShell({
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href, item.exact);
+            const isLockedItem = !isLive && item.href !== "/app/billing";
             return (
               <Link
                 key={item.href}
@@ -202,7 +215,9 @@ export default function DashboardShell({
                 className={`min-h-[42px] flex items-center justify-between gap-2.5 rounded-control px-3 py-2 text-sm transition-colors ${
                   active
                     ? "bg-cobalt-50 text-cobalt-700 font-medium"
-                    : "text-ink-secondary hover:bg-surface-subtle hover:text-ink"
+                    : isLockedItem
+                      ? "text-ink-muted hover:bg-surface-subtle hover:text-ink"
+                      : "text-ink-secondary hover:bg-surface-subtle hover:text-ink"
                 }`}
               >
                 <span className="flex items-center gap-2.5 min-w-0">
@@ -212,10 +227,15 @@ export default function DashboardShell({
                   />
                   <span className="truncate">{item.label}</span>
                 </span>
-                {item.badge !== null && item.badge !== undefined && (
-                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-cobalt-600 text-white text-[11px] font-medium tabular-nums">
-                    {item.badge}
-                  </span>
+                {isLockedItem ? (
+                  <LockIcon size={13} className="text-red-500 shrink-0" />
+                ) : (
+                  item.badge !== null &&
+                  item.badge !== undefined && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-cobalt-600 text-white text-[11px] font-medium tabular-nums">
+                      {item.badge}
+                    </span>
+                  )
                 )}
               </Link>
             );
@@ -332,7 +352,7 @@ export default function DashboardShell({
       {/* Main Content Workspace */}
       <main className="flex-1 min-w-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
-          {!isLive && !isSuperAdmin && (
+          {!isLive && (
             <div
               role="alert"
               className="mb-6 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
@@ -346,11 +366,11 @@ export default function DashboardShell({
                 </span>{" "}
                 —{" "}
                 {warningBanner?.message ||
-                  "Your public customer review page and paid operations are paused while your historical data stays intact."}
+                  "Your public customer review page and workspace operations are locked while your historical data stays safely intact."}
               </div>
               {pathname !== "/app/billing" && (
                 <Link
-                  href="/app/billing"
+                  href="/app/billing?tab=upgrade"
                   className="shrink-0 inline-flex items-center justify-center rounded-control bg-red-700 hover:bg-red-800 px-3.5 py-2 text-xs font-semibold text-white transition-colors"
                 >
                   Renew Subscription
@@ -358,7 +378,7 @@ export default function DashboardShell({
               )}
             </div>
           )}
-          {isLive && warningBanner && !isSuperAdmin && (
+          {isLive && warningBanner && (
             <div
               role="status"
               className={`mb-6 rounded-card border px-4 py-3 text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${

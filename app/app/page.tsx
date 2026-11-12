@@ -10,11 +10,16 @@ import {
   monthlyAnalyticsForBusiness,
   resolveActiveBusinessForOrg,
 } from "@/lib/repo";
-import { getOrganizationEntitlements } from "@/lib/entitlements";
+import {
+  getOrganizationEntitlements,
+  getPlanFeatureDisplayItems,
+  syncExpiredSubscriptions,
+} from "@/lib/entitlements";
 import { subscriptionRecordToOrgSummary } from "@/lib/subscriptions";
 import CopyButton from "@/components/CopyButton";
 import LocationSwitcher from "@/components/LocationSwitcher";
 import PlanInfoCard from "@/components/PlanInfoCard";
+import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
 import {
   ArrowUpRightIcon,
   BarChartIcon,
@@ -31,6 +36,9 @@ import {
 } from "@/components/Icons";
 
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function DashboardOverview({
   searchParams,
 }: {
@@ -41,6 +49,7 @@ export default async function DashboardOverview({
 
   const { biz: requestedBiz } = await searchParams;
   const nowMs = Date.now();
+  await syncExpiredSubscriptions(user.organizationId, nowMs);
   const [ctx, locState, members] = await Promise.all([
     getOrganizationEntitlements(user.organizationId, nowMs),
     resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
@@ -51,6 +60,7 @@ export default async function DashboardOverview({
     ? subscriptionRecordToOrgSummary(ctx.subscription, ctx.plan)
     : null;
   const isPlanUsable = ctx ? ctx.isUsable : true;
+  const featureItems = ctx ? getPlanFeatureDisplayItems(ctx) : [];
 
   if (businesses.length === 0) {
     return (
@@ -64,10 +74,23 @@ export default async function DashboardOverview({
             orgName={ctx.organization.name}
             planLabel={ctx.plan.name}
             supportTier={ctx.supportTier}
+            billingInterval={ctx.subscription.billingInterval}
+            paymentStatus={ctx.subscription.paymentStatus}
+            planHighlights={ctx.plan.highlights}
+            featureItems={featureItems}
             gracePeriodDays={ctx.settings.gracePeriodDays}
             serverNowMs={nowMs}
           />
         )}
+        {!isPlanUsable && ctx ? (
+          <SubscriptionLockedGate
+            sectionName="Workspace setup & dashboard"
+            planName={ctx.plan.name}
+            effectiveStatus={ctx.effectiveStatus}
+            renewalDate={ctx.subscription.currentPeriodEnd}
+            isSuperAdmin={user.role === "super_admin"}
+          />
+        ) : (
         <div className="rounded-card bg-white border border-black/[0.09] p-8 sm:p-12 shadow-panel">
           <div className="h-11 w-11 rounded-xl bg-cobalt-50 text-cobalt-600 flex items-center justify-center mb-5">
             <SettingsIcon size={20} />
@@ -106,6 +129,7 @@ export default async function DashboardOverview({
             <ArrowUpRightIcon size={16} />
           </Link>
         </div>
+        )}
       </div>
     );
   }
@@ -239,11 +263,26 @@ export default async function DashboardOverview({
           orgName={ctx.organization.name}
           planLabel={ctx.plan.name}
           supportTier={ctx.supportTier}
+          billingInterval={ctx.subscription.billingInterval}
+          paymentStatus={ctx.subscription.paymentStatus}
+          planHighlights={ctx.plan.highlights}
+          featureItems={featureItems}
           gracePeriodDays={ctx.settings.gracePeriodDays}
           serverNowMs={nowMs}
         />
       )}
 
+      {!isPlanUsable && ctx ? (
+        <SubscriptionLockedGate
+          sectionName="Business Dashboard & Analytics"
+          planName={ctx.plan.name}
+          effectiveStatus={ctx.effectiveStatus}
+          renewalDate={ctx.subscription.currentPeriodEnd}
+          isSuperAdmin={user.role === "super_admin"}
+          statsSummary={`${businesses.length} location${businesses.length === 1 ? "" : "s"}, ${activeCards} active card${activeCards === 1 ? "" : "s"}, ${a.totalSessions} recorded visits, ${a.feedbackSubmissions} feedback note${a.feedbackSubmissions === 1 ? "" : "s"}`}
+        />
+      ) : (
+        <>
       <LocationSwitcher
         businesses={businesses}
         activeBusinessId={business.id}
@@ -650,6 +689,8 @@ export default async function DashboardOverview({
             Explore Plans
           </Link>
         </div>
+      )}
+        </>
       )}
     </div>
   );

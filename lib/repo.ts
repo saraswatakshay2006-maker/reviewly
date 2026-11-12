@@ -596,7 +596,12 @@ export const updateOrganizationSubscription = (
 
     if (existingRec) {
       if (subPatch.plan) existingRec.planId = subPatch.plan;
-      if (subPatch.status) existingRec.status = subPatch.status;
+      if (subPatch.status) {
+        existingRec.status = subPatch.status;
+        if (subPatch.status === "active" && existingRec.paymentStatus === "NONE") {
+          existingRec.paymentStatus = "MANUAL";
+        }
+      }
       if (typeof subPatch.monthlyPriceInr === "number") {
         existingRec.amountInr = subPatch.monthlyPriceInr;
       }
@@ -608,18 +613,33 @@ export const updateOrganizationSubscription = (
       }
       if (subPatch.notes !== undefined) existingRec.notes = subPatch.notes;
 
+      const targetPlan = db.plans.find((p) => p.id === existingRec.planId);
       const overrides = { ...(existingRec.customOverrides || {}) };
       if (typeof subPatch.locationLimit === "number") {
-        overrides.maxLocations = subPatch.locationLimit;
+        if (targetPlan && subPatch.locationLimit === targetPlan.maxLocations) {
+          delete overrides.maxLocations;
+        } else {
+          overrides.maxLocations = subPatch.locationLimit;
+        }
       }
       if (typeof subPatch.teamLimit === "number") {
-        overrides.maxTeamMembers = subPatch.teamLimit;
+        if (targetPlan && subPatch.teamLimit === targetPlan.maxTeamMembers) {
+          delete overrides.maxTeamMembers;
+        } else {
+          overrides.maxTeamMembers = subPatch.teamLimit;
+        }
       }
       if (typeof subPatch.cardLimit === "number") {
-        overrides.maxCards = subPatch.cardLimit;
+        if (targetPlan && subPatch.cardLimit === targetPlan.maxCards) {
+          delete overrides.maxCards;
+        } else {
+          overrides.maxCards = subPatch.cardLimit;
+        }
       }
-      existingRec.customOverrides = overrides;
+      existingRec.customOverrides =
+        Object.keys(overrides).length > 0 ? overrides : null;
       existingRec.updatedAt = nowIso;
+      org.subscription = subscriptionRecordToOrgSummary(existingRec, targetPlan);
     }
 
     db.subscriptionAuditLogs.push({

@@ -55,7 +55,13 @@ export async function PATCH(
   try {
     const out = await upsertPlanAdmin({ ...parsed.data, id });
     revalidatePath("/");
+    revalidatePath("/admin");
+    revalidatePath("/app");
     revalidatePath("/app/billing");
+    revalidatePath("/app/cards");
+    revalidatePath("/app/feedback");
+    revalidatePath("/app/team");
+    revalidatePath("/app/settings");
     return NextResponse.json(
       { ok: true, ...out },
       { headers: { "Cache-Control": "no-store" } }
@@ -64,4 +70,3 @@ export async function PATCH(
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
 }
-
