@@ -1,24 +1,17 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
-import { getOrganizationById, listUsersForOrg } from "@/lib/repo";
-import {
-  getPlanEntitlements,
-  isSubscriptionActive,
-  resolveSubscription,
-} from "@/lib/subscriptions";
+import { getCurrentUser, isOwnerOrAdminRole } from "@/lib/auth";
+import { getOrganizationEntitlements } from "@/lib/entitlements";
+import { listUsersForOrg } from "@/lib/repo";
 import TeamManagementClient from "@/components/TeamManagementClient";
 
 export default async function TeamPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [org, members] = await Promise.all([
-    getOrganizationById(user.organizationId),
+  const [ctx, members] = await Promise.all([
+    getOrganizationEntitlements(user.organizationId),
     listUsersForOrg(user.organizationId),
   ]);
-  const sub = org ? resolveSubscription(org) : null;
-  const entitlements = sub ? getPlanEntitlements(sub) : null;
-  const isPlanUsable = sub ? isSubscriptionActive(sub) : true;
 
   return (
     <div className="space-y-6">
@@ -27,17 +20,18 @@ export default async function TeamPage() {
           Team members
         </h1>
         <p className="text-sm text-ink-secondary mt-1">
-          Manage admins, branch managers, and staff accounts inside {org?.name || "your workspace"}.
+          Manage business admins, branch managers, and staff accounts inside{" "}
+          {ctx?.organization.name || "your workspace"}.
         </p>
       </div>
 
       <TeamManagementClient
         initialMembers={members}
         currentUserId={user.id}
-        canManage={user.role === "owner" || user.role === "super_admin"}
-        teamLimit={entitlements?.teamLimit ?? 1}
-        planLabel={entitlements?.label ?? "Starter"}
-        isPlanUsable={isPlanUsable}
+        canManage={isOwnerOrAdminRole(user.role)}
+        teamLimit={ctx?.limits.maxTeamMembers ?? 1}
+        planLabel={ctx?.plan.name ?? "Starter"}
+        isPlanUsable={ctx ? ctx.isUsable : true}
       />
     </div>
   );

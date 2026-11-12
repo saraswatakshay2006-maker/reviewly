@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth";
+import { canManageOperationsRole, getCurrentUser, isOwnerOrAdminRole } from "@/lib/auth";
 import {
   createBusiness,
   updateBusiness,
@@ -13,34 +13,33 @@ import {
   listBusinessesForOrg,
   feedbackForBusiness,
   updateFeedbackReply,
-  getOrganizationById,
   listCardsForBusiness,
 } from "@/lib/repo";
 import {
-  getPlanEntitlements,
-  isSubscriptionActive,
-  resolveSubscription,
-} from "@/lib/subscriptions";
+  canCreateLocation,
+  checkResourceLimit,
+  getOrganizationEntitlements,
+} from "@/lib/entitlements";
 import { generateCardToken } from "@/lib/tokens";
 
 async function assertWorkspaceWritable(organizationId: string, role: string) {
-  if (role === "super_admin") return null;
-  const org = await getOrganizationById(organizationId);
-  if (!org) return null;
-  const sub = resolveSubscription(org);
-  if (!isSubscriptionActive(sub)) {
+  const ctx = await getOrganizationEntitlements(organizationId);
+  if (role === "super_admin") return ctx;
+  if (!ctx || !ctx.isUsable) {
     throw new Error(
-      "Your workspace subscription is expired, paused, or cancelled. Contact your administrator to renew or reactivate."
+      "Your workspace subscription is expired, paused, or cancelled. Visit Subscription & Billing to renew."
     );
   }
-  return sub;
+  return ctx;
 }
 
 export async function saveBusinessAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const sub = await assertWorkspaceWritable(user.organizationId, user.role);
-  const entitlements = sub ? getPlanEntitlements(sub) : null;
+  if (!isOwnerOrAdminRole(user.role)) {
+    throw new Error("Only workspace owners or admins can configure business locations.");
+  }
+  const ctx = await assertWorkspaceWritable(user.organizationId, user.role);
 
   const name = String(formData.get("name") || "").trim();
   const category = String(formData.get("category") || "").trim();
@@ -59,7 +58,7 @@ export async function saveBusinessAction(formData: FormData) {
   if (rawLogoUrl === "") {
     safeLogoUrl = "";
   } else {
-    if (entitlements && !entitlements.features.customBranding) {
+    if (user.role !== "super_admin" && ctx && !ctx.featureFlags.customBranding) {
       throw new Error(
         "Custom brand logo requires the Pro or Enterprise plan."
       );
@@ -87,11 +86,14 @@ export async function saveBusinessAction(formData: FormData) {
       });
     }
   } else {
-    const existingBusinesses = await listBusinessesForOrg(user.organizationId);
-    if (entitlements && existingBusinesses.length >= entitlements.locationLimit) {
-      throw new Error(
-        `Business location limit reached (${entitlements.locationLimit} on ${entitlements.label}). Upgrade your plan to add more locations.`
-      );
+    if (user.role !== "super_admin") {
+      const locCheck = await canCreateLocation(user.organizationId, "org");
+      if (!locCheck.allowed) {
+        throw new Error(
+          locCheck.reason ||
+            `Business location limit reached (${locCheck.limit}). Upgrade your plan to add more locations.`
+        );
+      }
     }
 
     const baseSlug =
@@ -120,20 +122,24 @@ export async function saveBusinessAction(formData: FormData) {
     if (safeLogoUrl) {
       await updateBusiness(biz.id, { logoUrl: safeLogoUrl });
     }
-    await addMember(biz.id, user.id, "owner");
+    await addMember(biz.id, user.id, user.role);
   }
 
   revalidatePath("/app");
   revalidatePath("/app/cards");
   revalidatePath("/app/feedback");
   revalidatePath("/app/settings");
+  revalidatePath("/app/billing");
   if (activeSlug) revalidatePath(`/r/${activeSlug}`);
 }
 
 export async function createCardAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const sub = await assertWorkspaceWritable(user.organizationId, user.role);
+  if (!canManageOperationsRole(user.role)) {
+    throw new Error("Insufficient permissions to create NFC/QR cards.");
+  }
+  await assertWorkspaceWritable(user.organizationId, user.role);
 
   const businessId = String(formData.get("businessId") || "");
   const business = await getBusinessById(businessId);
@@ -141,17 +147,17 @@ export async function createCardAction(formData: FormData) {
     throw new Error("Business not found");
   }
 
-  if (sub) {
-    const orgBusinesses = await listBusinessesForOrg(user.organizationId);
-    const cardsPerBiz = await Promise.all(
-      orgBusinesses.map((b) => listCardsForBusiness(b.id))
+  if (user.role !== "super_admin") {
+    const cardCheck = await checkResourceLimit(
+      user.organizationId,
+      "cards",
+      Date.now(),
+      "org"
     );
-    const activeCount = cardsPerBiz
-      .flat()
-      .filter((c) => c.status === "active").length;
-    if (activeCount >= sub.cardLimit) {
+    if (!cardCheck.allowed) {
       throw new Error(
-        `Active card limit reached (${sub.cardLimit} on your current plan). Ask your administrator to upgrade your plan.`
+        cardCheck.reason ||
+          `Active card limit reached (${cardCheck.limit}). Upgrade your plan to add more cards.`
       );
     }
   }
@@ -169,11 +175,15 @@ export async function createCardAction(formData: FormData) {
 
   revalidatePath("/app/cards");
   revalidatePath("/app");
+  revalidatePath("/app/billing");
 }
 
 export async function retireCardAction(cardId: string) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!canManageOperationsRole(user.role)) {
+    throw new Error("Insufficient permissions to retire NFC/QR cards.");
+  }
   await assertWorkspaceWritable(user.organizationId, user.role);
 
   const businesses = await listBusinessesForOrg(user.organizationId);
@@ -194,10 +204,17 @@ export async function retireCardAction(cardId: string) {
 export async function updateFeedbackReplyAction(feedbackId: string, note: string) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const sub = await assertWorkspaceWritable(user.organizationId, user.role);
-  if (sub && !getPlanEntitlements(sub).features.feedbackMonitoringAndReplies) {
+  if (!canManageOperationsRole(user.role)) {
+    throw new Error("Insufficient permissions to update feedback notes.");
+  }
+  const ctx = await assertWorkspaceWritable(user.organizationId, user.role);
+  if (
+    user.role !== "super_admin" &&
+    ctx &&
+    !ctx.featureFlags.feedbackMonitoringAndReplies
+  ) {
     throw new Error(
-      "Internal team reply notes require the Growth plan or higher."
+      "Feedback monitoring & team reply notes require the Growth plan or higher."
     );
   }
 

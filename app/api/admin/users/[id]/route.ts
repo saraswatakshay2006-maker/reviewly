@@ -5,7 +5,9 @@ import { deleteUserAdmin, updateUserAdmin } from "@/lib/repo";
 
 const patchSchema = z.object({
   name: z.string().min(1).max(80).optional(),
-  role: z.enum(["owner", "branch_manager", "staff", "super_admin"]).optional(),
+  role: z
+    .enum(["owner", "business_admin", "branch_manager", "staff", "super_admin"])
+    .optional(),
   newPassword: z.string().min(8).max(128).optional(),
 });
 

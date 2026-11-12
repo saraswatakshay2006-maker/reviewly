@@ -5,17 +5,13 @@ import {
   analyticsForBusiness,
   branchPerformanceForOrg,
   getBusinessById,
-  getOrganizationById,
   listCardsForBusiness,
   listUsersForOrg,
   monthlyAnalyticsForBusiness,
   resolveActiveBusinessForOrg,
 } from "@/lib/repo";
-import {
-  getPlanEntitlements,
-  isSubscriptionActive,
-  resolveSubscription,
-} from "@/lib/subscriptions";
+import { getOrganizationEntitlements } from "@/lib/entitlements";
+import { subscriptionRecordToOrgSummary } from "@/lib/subscriptions";
 import CopyButton from "@/components/CopyButton";
 import LocationSwitcher from "@/components/LocationSwitcher";
 import PlanInfoCard from "@/components/PlanInfoCard";
@@ -44,27 +40,31 @@ export default async function DashboardOverview({
   if (!user) redirect("/login");
 
   const { biz: requestedBiz } = await searchParams;
-  const [org, locState, members] = await Promise.all([
-    getOrganizationById(user.organizationId),
+  const nowMs = Date.now();
+  const [ctx, locState, members] = await Promise.all([
+    getOrganizationEntitlements(user.organizationId, nowMs),
     resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
     listUsersForOrg(user.organizationId),
   ]);
   const { businesses, active } = locState;
-  const sub = org ? resolveSubscription(org) : null;
-  const entitlements = sub ? getPlanEntitlements(sub) : null;
-  const nowMs = Date.now();
-  const isPlanUsable = sub ? isSubscriptionActive(sub, nowMs) : true;
+  const sub = ctx
+    ? subscriptionRecordToOrgSummary(ctx.subscription, ctx.plan)
+    : null;
+  const isPlanUsable = ctx ? ctx.isUsable : true;
 
   if (businesses.length === 0) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto mt-2">
-        {sub && (
+        {sub && ctx && (
           <PlanInfoCard
             subscription={sub}
             activeCards={0}
             locationCount={0}
             teamCount={members.length}
-            orgName={org?.name}
+            orgName={ctx.organization.name}
+            planLabel={ctx.plan.name}
+            supportTier={ctx.supportTier}
+            gracePeriodDays={ctx.settings.gracePeriodDays}
             serverNowMs={nowMs}
           />
         )}
@@ -113,9 +113,12 @@ export default async function DashboardOverview({
   const business = active ? await getBusinessById(active.id) : null;
   if (!business) redirect("/app/settings");
 
-  const showMonthly = entitlements?.features.monthlyReport ?? false;
-  const showBranches = entitlements?.features.branchReports ?? false;
-  const showExport = entitlements?.features.exportReports ?? false;
+  const showMonthly =
+    isPlanUsable && (ctx?.featureFlags.monthlyReport ?? false);
+  const showBranches =
+    isPlanUsable && (ctx?.featureFlags.branchReports ?? false);
+  const showExport =
+    isPlanUsable && (ctx?.featureFlags.exportReports ?? false);
 
   const [a, cardsPerBiz, monthly, branches] = await Promise.all([
     analyticsForBusiness(business.id),
@@ -227,13 +230,16 @@ export default async function DashboardOverview({
       </div>
 
       {/* Plan & Renewal Info */}
-      {sub && (
+      {sub && ctx && (
         <PlanInfoCard
           subscription={sub}
           activeCards={activeCards}
           locationCount={businesses.length}
           teamCount={members.length}
-          orgName={org?.name}
+          orgName={ctx.organization.name}
+          planLabel={ctx.plan.name}
+          supportTier={ctx.supportTier}
+          gracePeriodDays={ctx.settings.gracePeriodDays}
           serverNowMs={nowMs}
         />
       )}
@@ -508,7 +514,7 @@ export default async function DashboardOverview({
               </p>
             </div>
             <span className="rounded-md bg-cobalt-50 px-2.5 py-0.5 text-[11px] font-medium text-cobalt-700">
-              {entitlements?.label} feature
+              {ctx?.plan.name || "Growth"} feature
             </span>
           </div>
 
@@ -623,6 +629,27 @@ export default async function DashboardOverview({
             </table>
           </div>
         </section>
+      )}
+
+      {isPlanUsable && (!showMonthly || !showBranches) && (
+        <div className="rounded-card bg-white border border-black/[0.09] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <p className="text-xs font-semibold text-ink">
+              {!showMonthly
+                ? "Advanced Analytics & Monthly Reports are available on Growth and Pro plans."
+                : "Branch-wise Reports, CSV Exports, and Custom Branding are available on the Pro plan."}
+            </p>
+            <p className="text-xs text-ink-muted">
+              Upgrade anytime from Subscription &amp; Billing to unlock multi-location reports and AI-assisted reply drafting.
+            </p>
+          </div>
+          <Link
+            href="/app/billing?tab=upgrade"
+            className="shrink-0 inline-flex items-center justify-center rounded-control border border-cobalt-200 bg-cobalt-50 hover:bg-cobalt-100 px-3.5 py-2 text-xs font-semibold text-cobalt-700 transition-colors"
+          >
+            Explore Plans
+          </Link>
+        </div>
       )}
     </div>
   );

@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { getOrganizationEntitlements } from "@/lib/entitlements";
 import {
   feedbackForBusiness,
   feedbackInsightsForBusiness,
   getBusinessById,
-  getOrganizationById,
   resolveActiveBusinessForOrg,
 } from "@/lib/repo";
-import { getPlanEntitlements, resolveSubscription } from "@/lib/subscriptions";
 import FeedbackInboxClient from "@/components/FeedbackInboxClient";
 import LocationSwitcher from "@/components/LocationSwitcher";
 import { ArrowUpRightIcon, MessageSquareIcon } from "@/components/Icons";
@@ -22,14 +21,12 @@ export default async function FeedbackPage({
   if (!user) redirect("/login");
 
   const { biz: requestedBiz } = await searchParams;
-  const [org, locState] = await Promise.all([
-    getOrganizationById(user.organizationId),
+  const [ctx, locState] = await Promise.all([
+    getOrganizationEntitlements(user.organizationId),
     resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
   ]);
   const { businesses, active } = locState;
   const business = active ? await getBusinessById(active.id) : null;
-  const sub = org ? resolveSubscription(org) : null;
-  const entitlements = sub ? getPlanEntitlements(sub) : null;
 
   if (!business) {
     return (
@@ -47,7 +44,13 @@ export default async function FeedbackPage({
     );
   }
 
-  const showInsights = entitlements?.features.feedbackInsights ?? false;
+  const isUsable = ctx ? ctx.isUsable : true;
+  const showInsights = isUsable && (ctx?.featureFlags.feedbackInsights ?? false);
+  const canManageReplies =
+    isUsable && (ctx?.featureFlags.feedbackMonitoringAndReplies ?? false);
+  const canUseAiDraft =
+    isUsable && (ctx?.featureFlags.aiResponseAssist ?? false);
+
   const [feedback, insights] = await Promise.all([
     feedbackForBusiness(business.id),
     showInsights ? feedbackInsightsForBusiness(business.id) : Promise.resolve(null),
@@ -92,7 +95,7 @@ export default async function FeedbackPage({
               Customer feedback insights
             </h2>
             <span className="rounded-md bg-cobalt-50 px-2 py-0.5 text-[11px] font-medium text-cobalt-700">
-              {entitlements?.label} analytics
+              {ctx?.plan.name} analytics
             </span>
           </div>
 
@@ -144,6 +147,20 @@ export default async function FeedbackPage({
         </section>
       )}
 
+      {!showInsights && isUsable && (
+        <div className="rounded-card bg-white border border-black/[0.09] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-ink-secondary">
+            Customer feedback insights, team reply notes, and AI reply drafts are available on Growth and Pro plans.
+          </p>
+          <Link
+            href="/app/billing?tab=upgrade"
+            className="text-xs font-semibold text-cobalt-600 hover:text-cobalt-700"
+          >
+            Explore Plans
+          </Link>
+        </div>
+      )}
+
       {feedback.length === 0 ? (
         <div className="rounded-card bg-white border border-black/[0.09] p-10 sm:p-14 text-center space-y-3">
           <div className="mx-auto h-11 w-11 rounded-xl bg-surface-subtle text-ink-muted flex items-center justify-center">
@@ -160,10 +177,8 @@ export default async function FeedbackPage({
         <FeedbackInboxClient
           items={feedback}
           businessName={business.name}
-          canManageReplies={
-            entitlements?.features.feedbackMonitoringAndReplies ?? false
-          }
-          canUseAiDraft={entitlements?.features.aiResponseAssist ?? false}
+          canManageReplies={canManageReplies}
+          canUseAiDraft={canUseAiDraft}
         />
       )}
     </div>

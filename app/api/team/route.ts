@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, hashPassword } from "@/lib/auth";
-import {
-  createUser,
-  getOrganizationById,
-  listUsersForOrg,
-} from "@/lib/repo";
-import {
-  getPlanEntitlements,
-  isSubscriptionActive,
-  resolveSubscription,
-} from "@/lib/subscriptions";
+import { getCurrentUser, hashPassword, isOwnerOrAdminRole } from "@/lib/auth";
+import { canInviteTeamMember, getOrganizationEntitlements } from "@/lib/entitlements";
+import { createUser, listUsersForOrg } from "@/lib/repo";
 
 const addMemberSchema = z.object({
   name: z.string().min(1).max(80),
   email: z.string().email(),
   password: z.string().min(8).max(128),
-  role: z.enum(["owner", "branch_manager", "staff"]).default("staff"),
+  role: z
+    .enum(["owner", "business_admin", "branch_manager", "staff"])
+    .default("staff"),
 });
 
 export async function GET() {
@@ -24,18 +18,20 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const [org, members] = await Promise.all([
-    getOrganizationById(user.organizationId),
+  const [ctx, members] = await Promise.all([
+    getOrganizationEntitlements(user.organizationId),
     listUsersForOrg(user.organizationId),
   ]);
-  const sub = org ? resolveSubscription(org) : null;
-  const entitlements = sub ? getPlanEntitlements(sub) : null;
-  return NextResponse.json({
-    ok: true,
-    members,
-    teamLimit: entitlements?.teamLimit ?? 1,
-    planLabel: entitlements?.label ?? "Starter",
-  });
+  return NextResponse.json(
+    {
+      ok: true,
+      members,
+      teamLimit: ctx?.limits.maxTeamMembers ?? 1,
+      planLabel: ctx?.plan.name ?? "Starter",
+      isUsable: ctx?.isUsable ?? false,
+    },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -43,34 +39,36 @@ export async function POST(req: NextRequest) {
   if (!actor) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (actor.role !== "owner" && actor.role !== "super_admin") {
+  if (!isOwnerOrAdminRole(actor.role)) {
     return NextResponse.json(
-      { error: "Only workspace owners can add team members" },
+      { error: "Only workspace owners or business admins can add team members" },
       { status: 403 }
     );
   }
 
-  const org = await getOrganizationById(actor.organizationId);
-  if (!org) {
+  const ctx = await getOrganizationEntitlements(actor.organizationId);
+  if (!ctx) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   }
-  const sub = resolveSubscription(org);
-  if (actor.role !== "super_admin" && !isSubscriptionActive(sub)) {
+  if (actor.role !== "super_admin" && !ctx.isUsable) {
     return NextResponse.json(
       { error: "Workspace subscription is expired or paused." },
       { status: 403 }
     );
   }
 
-  const entitlements = getPlanEntitlements(sub);
-  const existing = await listUsersForOrg(actor.organizationId);
-  if (existing.length >= entitlements.teamLimit) {
-    return NextResponse.json(
-      {
-        error: `Team member limit reached (${existing.length}/${entitlements.teamLimit} on ${entitlements.label}). Upgrade your plan to add more team members.`,
-      },
-      { status: 403 }
-    );
+  if (actor.role !== "super_admin") {
+    const inviteCheck = await canInviteTeamMember(actor.organizationId, "org");
+    if (!inviteCheck.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            inviteCheck.reason ||
+            `Team member limit reached (${inviteCheck.used}/${inviteCheck.limit} on ${inviteCheck.planName}). Upgrade your plan to add more team members.`,
+        },
+        { status: 403 }
+      );
+    }
   }
 
   let json: unknown;

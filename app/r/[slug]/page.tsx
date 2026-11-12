@@ -1,16 +1,13 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { getBusinessBySlug, getOrganizationById, createSession } from "@/lib/repo";
-import {
-  getPlanEntitlements,
-  getSubscriptionHealth,
-  resolveSubscription,
-} from "@/lib/subscriptions";
+import { canAccessPublicReviewPage } from "@/lib/entitlements";
+import { createSession, getBusinessBySlug } from "@/lib/repo";
 import { getContrastInk, normalizeHex, rgbaFromHex } from "@/lib/color";
 import RatingExperienceClient from "./RatingExperienceClient";
 import PlatformSignature from "@/components/PlatformSignature";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function PublicLandingPage({
   params,
@@ -25,32 +22,36 @@ export default async function PublicLandingPage({
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
 
-  const org = await getOrganizationById(business.organizationId);
-  const sub = org ? resolveSubscription(org) : null;
-  const entitlements = sub ? getPlanEntitlements(sub) : null;
-  const health = sub ? getSubscriptionHealth(sub) : null;
+  const access = await canAccessPublicReviewPage(business.id);
+  const entitlements = access.context;
 
-  if (health && !health.isUsable) {
+  if (!access.allowed) {
     return (
       <main className="min-h-screen flex flex-col bg-canvas">
-        <div className="flex-1 w-full max-w-[440px] mx-auto px-4 py-12 flex items-center justify-center">
-          <div className="w-full rounded-[22px] bg-white border border-black/[0.09] shadow-elevated p-8 text-center space-y-3">
-            <span className="inline-flex items-center rounded-full bg-red-50 border border-red-200 px-3 py-1 text-[11px] font-semibold text-red-700">
-              {health.expired ? "Plan expired" : "Temporarily paused"}
+        <div className="flex-1 w-full max-w-[460px] mx-auto px-4 py-12 flex items-center justify-center">
+          <section
+            aria-label="Review service unavailable"
+            className="w-full rounded-[22px] bg-white border border-black/[0.09] shadow-elevated p-8 text-center space-y-3"
+          >
+            <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[11px] font-semibold text-amber-800">
+              Service paused
             </span>
             <h1 className="font-display text-xl font-semibold text-ink">
-              {business.name}
+              Review page temporarily unavailable
             </h1>
             <p className="text-sm text-ink-secondary leading-relaxed">
-              {health.expired
-                ? "This review page is currently closed because the business's subscription plan has expired. Please contact the business directly."
-                : "This review page is temporarily paused. Please check back later or contact the business directly."}
+              This business&apos;s review service is currently paused. Please contact the business directly for assistance.
             </p>
-          </div>
+            <p className="pt-2 text-xs font-medium text-ink-muted">
+              {business.name}
+            </p>
+          </section>
         </div>
-        <footer className="py-5 px-4 border-t border-black/[0.06] bg-white/80">
-          <PlatformSignature />
-        </footer>
+        {!entitlements?.featureFlags.whiteLabel && (
+          <footer className="py-5 px-4 border-t border-black/[0.06] bg-white/80">
+            <PlatformSignature />
+          </footer>
+        )}
       </main>
     );
   }
@@ -86,7 +87,7 @@ export default async function PublicLandingPage({
               borderColor: borderTint,
             }}
           >
-            {entitlements?.features.customBranding &&
+            {entitlements?.featureFlags.customBranding &&
             /^https?:\/\//i.test(business.logoUrl || "") ? (
               <img
                 src={business.logoUrl}
@@ -136,7 +137,7 @@ export default async function PublicLandingPage({
         </article>
       </div>
 
-      {!entitlements?.features.whiteLabel && (
+      {!entitlements?.featureFlags.whiteLabel && (
         <footer className="py-5 px-4 border-t border-black/[0.06] bg-white/80">
           <PlatformSignature />
         </footer>

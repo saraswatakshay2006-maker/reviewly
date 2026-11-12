@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { getEnv } from "@/lib/cloudflare";
-import { getOrganizationById } from "@/lib/repo";
-import {
-  getPlanEntitlements,
-  isSubscriptionActive,
-  resolveSubscription,
-} from "@/lib/subscriptions";
+import { getOrganizationEntitlements } from "@/lib/entitlements";
+import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
 import {
   extractOpeningKey,
   generateUniqueBusinessReview,
@@ -243,6 +239,19 @@ async function generateBusinessReplyDraft(params: {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = clientIpFromHeaders(req.headers);
+  const rl = checkRateLimit({
+    key: `ai:${ip}`,
+    limit: 40,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many AI assist requests. Please wait a moment." },
+      { status: 429, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   let json: unknown;
   try {
     json = await req.json();
@@ -263,19 +272,15 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const org = await getOrganizationById(user.organizationId);
-    if (org) {
-      const sub = resolveSubscription(org);
-      if (user.role !== "super_admin" && !isSubscriptionActive(sub)) {
+    const ctx = await getOrganizationEntitlements(user.organizationId);
+    if (ctx && user.role !== "super_admin") {
+      if (!ctx.isUsable) {
         return NextResponse.json(
           { error: "Subscription expired or paused." },
           { status: 403 }
         );
       }
-      if (
-        user.role !== "super_admin" &&
-        !getPlanEntitlements(sub).features.aiResponseAssist
-      ) {
+      if (!ctx.featureFlags.aiResponseAssist) {
         return NextResponse.json(
           { error: "AI-assisted response drafts require the Growth plan or higher." },
           { status: 403 }

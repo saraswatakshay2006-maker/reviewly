@@ -3,13 +3,12 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getEnv } from "@/lib/cloudflare";
+import { getOrganizationEntitlements } from "@/lib/entitlements";
 import {
   getBusinessById,
-  getOrganizationById,
   listCardsForBusiness,
   resolveActiveBusinessForOrg,
 } from "@/lib/repo";
-import { PLAN_DEFAULTS, resolveSubscription } from "@/lib/subscriptions";
 import CardsStudioClient from "@/components/CardsStudioClient";
 import LocationSwitcher from "@/components/LocationSwitcher";
 
@@ -22,13 +21,12 @@ export default async function CardsPage({
   if (!user) redirect("/login");
 
   const { biz: requestedBiz } = await searchParams;
-  const [org, locState] = await Promise.all([
-    getOrganizationById(user.organizationId),
+  const [ctx, locState] = await Promise.all([
+    getOrganizationEntitlements(user.organizationId),
     resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
   ]);
   const { businesses, active } = locState;
   const business = active ? await getBusinessById(active.id) : null;
-  const sub = org ? resolveSubscription(org) : null;
 
   if (!business) {
     return (
@@ -60,6 +58,8 @@ export default async function CardsPage({
     (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
   const appUrl = (getEnv("NEXT_PUBLIC_APP_URL") || `${proto}://${host}`).replace(/\/$/, "");
 
+  const maxCards = ctx?.limits.maxCards ?? 10;
+
   return (
     <div className="space-y-6">
       <div className="no-print pb-5 border-b border-black/[0.08] flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -71,11 +71,11 @@ export default async function CardsPage({
             Issue dynamic NFC card tokens and download or print your counter QR stand.
           </p>
         </div>
-        {sub && (
+        {ctx && (
           <div className="inline-flex items-center gap-2 rounded-lg border border-black/[0.08] bg-white px-3 py-1.5 text-xs text-ink-secondary self-start sm:self-auto tabular-nums">
-            <span className="font-medium text-ink">{PLAN_DEFAULTS[sub.plan].label}:</span>
+            <span className="font-medium text-ink">{ctx.plan.name}:</span>
             <span>
-              {orgActiveCards} / {sub.cardLimit} active cards
+              {orgActiveCards} / {maxCards < 0 ? "Unlimited" : maxCards} active cards
             </span>
           </div>
         )}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { addEvent, getOrganizationById, getSessionById } from "@/lib/repo";
-import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
+import { canAccessPublicReviewPage } from "@/lib/entitlements";
+import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
+import { addEvent, getSessionById } from "@/lib/repo";
 
 const bodySchema = z.object({
   sessionId: z.string(),
@@ -11,6 +12,19 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const ip = clientIpFromHeaders(req.headers);
+  const rl = checkRateLimit({
+    key: `events:${ip}`,
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded" },
+      { status: 429, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   let json: unknown;
   try {
     json = await req.json();
@@ -20,7 +34,10 @@ export async function POST(req: NextRequest) {
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid payload", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid payload", details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   const { sessionId, businessId, type, rating } = parsed.data;
@@ -29,11 +46,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unknown session" }, { status: 400 });
   }
 
-  const org = await getOrganizationById(session.organizationId);
-  if (org && !isSubscriptionActive(resolveSubscription(org))) {
+  const access = await canAccessPublicReviewPage(businessId);
+  if (!access.allowed) {
     return NextResponse.json(
-      { error: "Review page is unavailable because the subscription has expired or is paused." },
-      { status: 403 }
+      {
+        error:
+          "Review page is unavailable because the subscription has expired or is paused.",
+      },
+      { status: 403, headers: { "Cache-Control": "no-store" } }
     );
   }
 
@@ -45,5 +65,8 @@ export async function POST(req: NextRequest) {
     rating: rating ?? null,
   });
 
-  return NextResponse.json({ ok: true, event: ev }, { status: 201 });
+  return NextResponse.json(
+    { ok: true, event: ev },
+    { status: 201, headers: { "Cache-Control": "no-store" } }
+  );
 }

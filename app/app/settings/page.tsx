@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { getOrganizationEntitlements } from "@/lib/entitlements";
 import {
-  getOrganizationById,
   listCardsForBusiness,
   listUsersForOrg,
   resolveActiveBusinessForOrg,
 } from "@/lib/repo";
-import { getPlanEntitlements, resolveSubscription } from "@/lib/subscriptions";
+import { subscriptionRecordToOrgSummary } from "@/lib/subscriptions";
 import PlanInfoCard from "@/components/PlanInfoCard";
 import { BuildingIcon, PlusIcon } from "@/components/Icons";
 import BusinessSettingsForm from "./BusinessSettingsForm";
@@ -21,20 +21,20 @@ export default async function SettingsPage({
   if (!user) redirect("/login");
 
   const { biz: requestedBiz, new: newParam } = await searchParams;
+  const nowMs = Date.now();
 
-  const [org, locState, members] = await Promise.all([
-    getOrganizationById(user.organizationId),
+  const [ctx, locState, members] = await Promise.all([
+    getOrganizationEntitlements(user.organizationId, nowMs),
     resolveActiveBusinessForOrg(user.organizationId, requestedBiz),
     listUsersForOrg(user.organizationId),
   ]);
 
-  const sub = org ? resolveSubscription(org) : null;
-  const entitlements = sub ? getPlanEntitlements(sub) : null;
   const { businesses, active } = locState;
-
-  const canAddMoreLocations = entitlements
-    ? businesses.length < entitlements.locationLimit
-    : false;
+  const maxLocations = ctx?.limits.maxLocations ?? 1;
+  const isUnlimitedLocations = maxLocations < 0;
+  const isPlanUsable = ctx ? ctx.isUsable : true;
+  const canAddMoreLocations =
+    isPlanUsable && (isUnlimitedLocations || businesses.length < maxLocations);
   const isCreatingNew = newParam === "1" && canAddMoreLocations;
   const formTarget = isCreatingNew ? null : active;
 
@@ -44,6 +44,10 @@ export default async function SettingsPage({
   const activeCards = cardsPerBiz
     .flat()
     .filter((c) => c.status === "active").length;
+
+  const subSummary = ctx
+    ? subscriptionRecordToOrgSummary(ctx.subscription, ctx.plan)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -57,10 +61,10 @@ export default async function SettingsPage({
           </p>
         </div>
 
-        {entitlements && (
-          <div className="flex items-center gap-2 shrink-0">
+        {ctx && (
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
             <span className="rounded-md bg-surface-subtle px-2.5 py-1.5 text-xs font-medium text-ink tabular-nums">
-              {businesses.length} / {entitlements.locationLimit} locations
+              {businesses.length} / {isUnlimitedLocations ? "Unlimited" : maxLocations} locations
             </span>
             {canAddMoreLocations && businesses.length > 0 && (
               <Link
@@ -71,6 +75,12 @@ export default async function SettingsPage({
                 <span>Add location</span>
               </Link>
             )}
+            <Link
+              href="/app/billing"
+              className="inline-flex items-center rounded-control border border-black/[0.12] bg-white hover:bg-surface-subtle px-3 py-1.5 text-xs font-medium text-ink transition-colors"
+            >
+              Subscription &amp; Billing
+            </Link>
           </div>
         )}
       </div>
@@ -105,23 +115,42 @@ export default async function SettingsPage({
             )}
           </div>
 
-          {!canAddMoreLocations && entitlements && (
+          {!canAddMoreLocations && ctx && (
             <span className="text-[11px] text-ink-muted">
-              Location limit reached on {entitlements.label} — upgrade for more branches.
+              {!isPlanUsable ? (
+                <>
+                  Subscription paused —{" "}
+                  <Link href="/app/billing" className="text-cobalt-600 font-medium">
+                    renew plan
+                  </Link>{" "}
+                  to edit or add branches.
+                </>
+              ) : (
+                <>
+                  Location limit reached on {ctx.plan.name} —{" "}
+                  <Link href="/app/billing?tab=upgrade" className="text-cobalt-600 font-medium">
+                    upgrade for more branches
+                  </Link>
+                  .
+                </>
+              )}
             </span>
           )}
         </div>
       )}
 
-      {sub && (
+      {subSummary && ctx && (
         <PlanInfoCard
-          subscription={sub}
+          subscription={subSummary}
           activeCards={activeCards}
           locationCount={businesses.length}
           teamCount={members.length}
-          orgName={org?.name}
+          orgName={ctx.organization.name}
+          planLabel={ctx.plan.name}
+          supportTier={ctx.supportTier}
+          gracePeriodDays={ctx.settings.gracePeriodDays}
           compact
-          serverNowMs={Date.now()}
+          serverNowMs={nowMs}
         />
       )}
 
@@ -129,8 +158,10 @@ export default async function SettingsPage({
         key={formTarget?.id ?? "new-location"}
         orgId={user.organizationId}
         initial={formTarget}
-        canUseCustomBranding={entitlements?.features.customBranding ?? false}
-        whiteLabel={entitlements?.features.whiteLabel ?? false}
+        canUseCustomBranding={
+          isPlanUsable && (ctx?.featureFlags.customBranding ?? false)
+        }
+        whiteLabel={isPlanUsable && (ctx?.featureFlags.whiteLabel ?? false)}
       />
     </div>
   );

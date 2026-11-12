@@ -2,7 +2,7 @@ import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import PlatformSignature from "@/components/PlatformSignature";
 import LandingInteractiveDemo from "@/components/LandingInteractiveDemo";
-import { PLAN_DEFAULTS, PUBLIC_PRICING_PLANS } from "@/lib/subscriptions";
+import { listPlansWithFeatures } from "@/lib/billing";
 import {
   ArrowUpRightIcon,
   CheckIcon,
@@ -14,7 +14,10 @@ import {
   StarIcon,
 } from "@/components/Icons";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const activePlans = await listPlansWithFeatures(false);
   const complianceRules = [
     {
       title: "Zero review gating",
@@ -330,9 +333,8 @@ export default function HomePage() {
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-              {PUBLIC_PRICING_PLANS.map((planId) => {
-                const plan = PLAN_DEFAULTS[planId];
-                const isPopular = planId === "growth";
+              {activePlans.map((plan) => {
+                const isPopular = plan.isPopular;
                 return (
                   <div
                     key={plan.id}
@@ -351,10 +353,10 @@ export default function HomePage() {
                               : "bg-surface-subtle text-ink-secondary"
                           }`}
                         >
-                          {plan.badge}
+                          {plan.isPopular ? "Most popular" : plan.badge || "Plan"}
                         </span>
                         <span className="font-display text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                          {plan.label}
+                          {plan.name}
                         </span>
                       </div>
 
@@ -364,16 +366,36 @@ export default function HomePage() {
                             Custom
                           </p>
                         ) : (
-                          <p className="font-display text-3xl font-semibold text-ink tabular-nums">
-                            ₹{plan.monthlyPriceInr.toLocaleString("en-IN")}
-                            <span className="text-xs font-normal text-ink-muted">
-                              {" "}
-                              /month
-                            </span>
-                          </p>
+                          <div>
+                            <p className="font-display text-3xl font-semibold text-ink tabular-nums">
+                              ₹{plan.monthlyPriceInr.toLocaleString("en-IN")}
+                              <span className="text-xs font-normal text-ink-muted">
+                                {" "}
+                                /month
+                              </span>
+                            </p>
+                            {plan.annualPriceInr ? (
+                              <p className="text-[11px] text-ink-muted mt-0.5 tabular-nums">
+                                or ₹{plan.annualPriceInr.toLocaleString("en-IN")} / year
+                              </p>
+                            ) : null}
+                          </div>
                         )}
                         <p className="text-xs text-ink-secondary mt-2 leading-relaxed">
-                          {plan.tagline}
+                          {plan.description}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg bg-canvas border border-black/[0.06] px-3 py-2 text-[11px] text-ink-secondary space-y-0.5">
+                        <p>
+                          <strong className="text-ink">
+                            {plan.maxLocations < 0 ? "Unlimited" : plan.maxLocations}
+                          </strong>{" "}
+                          location{plan.maxLocations === 1 ? "" : "s"} ·{" "}
+                          <strong className="text-ink">
+                            {plan.maxTeamMembers < 0 ? "Unlimited" : plan.maxTeamMembers}
+                          </strong>{" "}
+                          user{plan.maxTeamMembers === 1 ? "" : "s"}
                         </p>
                       </div>
 

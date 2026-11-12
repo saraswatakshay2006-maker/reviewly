@@ -1,11 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, sessionCookieName } from "@/lib/auth";
-import {
-  listBusinessesForOrg,
-  getOrganizationById,
-  feedbackForBusiness,
-} from "@/lib/repo";
-import { PLAN_DEFAULTS, resolveSubscription } from "@/lib/subscriptions";
+import { getOrganizationEntitlements } from "@/lib/entitlements";
+import { feedbackForBusiness, listBusinessesForOrg } from "@/lib/repo";
+import { subscriptionRecordToOrgSummary } from "@/lib/subscriptions";
 import DashboardShell from "@/components/DashboardShell";
 
 export default async function DashboardLayout({
@@ -18,9 +15,10 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const org = await getOrganizationById(user.organizationId);
-  const sub = org ? resolveSubscription(org) : null;
-  const businesses = await listBusinessesForOrg(user.organizationId);
+  const [ctx, businesses] = await Promise.all([
+    getOrganizationEntitlements(user.organizationId),
+    listBusinessesForOrg(user.organizationId),
+  ]);
   const primaryBiz = businesses[0] ?? null;
 
   const feedbackLists = await Promise.all(
@@ -29,6 +27,10 @@ export default async function DashboardLayout({
   const pendingFeedbackCount = feedbackLists
     .flat()
     .filter((f) => !f.replyNote).length;
+
+  const subSummary = ctx
+    ? subscriptionRecordToOrgSummary(ctx.subscription, ctx.plan)
+    : null;
 
   async function signOutAction() {
     "use server";
@@ -39,12 +41,15 @@ export default async function DashboardLayout({
 
   return (
     <DashboardShell
-      orgName={org?.name || "My Workspace"}
+      orgName={ctx?.organization.name || "My Workspace"}
       userName={user.name}
       userEmail={user.email}
       isSuperAdmin={user.role === "super_admin"}
-      subscriptionPlan={sub ? PLAN_DEFAULTS[sub.plan].label : "Starter"}
-      subscription={sub}
+      subscriptionPlan={ctx?.plan.name || "Starter"}
+      subscription={subSummary}
+      gracePeriodDays={ctx?.settings.gracePeriodDays ?? 0}
+      warningBanner={ctx?.warningBanner ?? null}
+      cancelAtPeriodEnd={ctx?.subscription.cancelAtPeriodEnd ?? false}
       serverNowMs={Date.now()}
       businessSlug={primaryBiz?.publicSlug ?? null}
       businessName={primaryBiz?.name ?? null}

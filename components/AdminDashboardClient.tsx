@@ -21,8 +21,17 @@ import {
   type EffectiveSubscriptionStatus,
 } from "@/lib/subscriptions";
 import { RenewalCountdownBadge } from "./RenewalTimeText";
+import AdminSubscriptionSuite, {
+  type AdminAuditLogView,
+  type AdminPaymentView,
+  type AdminPlanView,
+  type AdminSubscriptionAnalytics,
+  type AdminSubscriptionView,
+} from "./AdminSubscriptionSuite";
 import type {
+  CouponRecord,
   OrganizationSubscription,
+  PlatformBillingSettings,
   Role,
   SubscriptionPlan,
   SubscriptionStatus,
@@ -129,9 +138,16 @@ export interface AdminSnapshot {
     businessName: string;
     organizationName: string;
   }[];
+  subscriptionAnalytics: AdminSubscriptionAnalytics;
+  plans: AdminPlanView[];
+  subscriptions: AdminSubscriptionView[];
+  payments: AdminPaymentView[];
+  auditLogs: AdminAuditLogView[];
+  coupons: CouponRecord[];
+  platformSettings: PlatformBillingSettings;
 }
 
-type AdminTab = "clients" | "users" | "businesses" | "activity";
+type AdminTab = "subscriptions" | "clients" | "users" | "businesses" | "activity";
 
 const STATUS_BADGE: Record<EffectiveSubscriptionStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -166,7 +182,7 @@ export default function AdminDashboardClient({
   signOutAction: () => Promise<void>;
 }) {
   const [data, setData] = useState<AdminSnapshot>(initialData);
-  const [tab, setTab] = useState<AdminTab>("clients");
+  const [tab, setTab] = useState<AdminTab>("subscriptions");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | EffectiveSubscriptionStatus>("all");
   const [refreshing, setRefreshing] = useState(false);
@@ -377,7 +393,8 @@ export default function AdminDashboardClient({
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="inline-flex flex-wrap items-center gap-1 rounded-card bg-white border border-black/[0.09] p-1">
             {[
-              { id: "clients" as const, label: `Clients & Subscriptions (${data.organizations.length})` },
+              { id: "subscriptions" as const, label: `Subscription Management (${data.subscriptions.length})` },
+              { id: "clients" as const, label: `Client Workspaces (${data.organizations.length})` },
               { id: "users" as const, label: `Users (${data.users.length})` },
               { id: "businesses" as const, label: `Businesses & Cards (${data.businesses.length})` },
               { id: "activity" as const, label: `Feedback & Logs (${data.feedback.length})` },
@@ -397,41 +414,59 @@ export default function AdminDashboardClient({
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
-            {tab === "clients" && (
-              <select
-                aria-label="Filter by subscription status"
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as "all" | EffectiveSubscriptionStatus)
-                }
-                className="min-h-[38px] rounded-control border border-black/[0.12] bg-white px-3 text-xs font-medium text-ink outline-none focus:border-cobalt-600"
-              >
-                <option value="all">All statuses</option>
-                {SUBSCRIPTION_STATUSES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-                <option value="expired">Expired</option>
-              </select>
-            )}
+          {tab !== "subscriptions" && (
+            <div className="flex items-center gap-2">
+              {tab === "clients" && (
+                <select
+                  aria-label="Filter by subscription status"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as "all" | EffectiveSubscriptionStatus)
+                  }
+                  className="min-h-[38px] rounded-control border border-black/[0.12] bg-white px-3 text-xs font-medium text-ink outline-none focus:border-cobalt-600"
+                >
+                  <option value="all">All statuses</option>
+                  {SUBSCRIPTION_STATUSES.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                  <option value="expired">Expired</option>
+                </select>
+              )}
 
-            <div className="relative flex-1 md:w-64">
-              <SearchIcon
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
-              />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search workspace, email, slug…"
-                className="w-full min-h-[38px] rounded-control border border-black/[0.12] bg-white pl-8 pr-3 text-xs text-ink placeholder:text-ink-muted outline-none focus:border-cobalt-600"
-              />
+              <div className="relative flex-1 md:w-64">
+                <SearchIcon
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search workspace, email, slug…"
+                  className="w-full min-h-[38px] rounded-control border border-black/[0.12] bg-white pl-8 pr-3 text-xs text-ink placeholder:text-ink-muted outline-none focus:border-cobalt-600"
+                />
+              </div>
             </div>
-          </div>
+          )}
         </section>
+
+        {/* Tab 0: Full Subscription Management Suite */}
+        {tab === "subscriptions" && (
+          <AdminSubscriptionSuite
+            analytics={data.subscriptionAnalytics}
+            plans={data.plans}
+            subscriptions={data.subscriptions}
+            organizations={data.organizations}
+            payments={data.payments}
+            auditLogs={data.auditLogs}
+            coupons={data.coupons}
+            platformSettings={data.platformSettings}
+            onRefresh={reload}
+            onNotify={notify}
+          />
+        )}
 
         {/* Tab 1: Clients & Subscriptions */}
         {tab === "clients" && (
@@ -1012,6 +1047,7 @@ function UserRow({
           className="min-h-[34px] rounded-control border border-black/[0.12] bg-white px-2.5 text-xs text-ink outline-none focus:border-cobalt-600 disabled:bg-canvas"
         >
           <option value="owner">owner</option>
+          <option value="business_admin">business_admin</option>
           <option value="branch_manager">branch_manager</option>
           <option value="staff">staff</option>
           <option value="super_admin">super_admin</option>

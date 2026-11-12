@@ -18,8 +18,11 @@ import {
   ShieldCheckIcon,
   UsersIcon,
 } from "./Icons";
-import { getSubscriptionHealth } from "@/lib/subscriptions";
-import { RenewalCountdownBadge, RenewalDateTimeValue } from "./RenewalTimeText";
+import {
+  getSubscriptionHealth,
+  type ExpiryNotificationBanner,
+} from "@/lib/subscriptions";
+import { RenewalCountdownBadge } from "./RenewalTimeText";
 import type { OrganizationSubscription } from "@/lib/types";
 
 interface DashboardShellProps {
@@ -29,6 +32,9 @@ interface DashboardShellProps {
   isSuperAdmin?: boolean;
   subscriptionPlan?: string;
   subscription?: OrganizationSubscription | null;
+  gracePeriodDays?: number;
+  warningBanner?: ExpiryNotificationBanner | null;
+  cancelAtPeriodEnd?: boolean;
   serverNowMs?: number;
   businessSlug: string | null;
   businessName: string | null;
@@ -44,6 +50,9 @@ export default function DashboardShell({
   isSuperAdmin = false,
   subscriptionPlan = "Starter",
   subscription = null,
+  gracePeriodDays = 0,
+  warningBanner = null,
+  cancelAtPeriodEnd = false,
   serverNowMs = 0,
   businessSlug,
   businessName,
@@ -62,7 +71,11 @@ export default function DashboardShell({
   }, [subscription?.renewalDate, subscription?.status]);
 
   const health = subscription
-    ? getSubscriptionHealth(subscription, nowMs ?? serverNowMs)
+    ? getSubscriptionHealth(
+        { ...subscription, cancelAtPeriodEnd },
+        nowMs ?? serverNowMs,
+        gracePeriodDays
+      )
     : null;
   const effectiveStatus = health?.effectiveStatus ?? "active";
   const isLive = health ? health.isUsable : true;
@@ -91,6 +104,11 @@ export default function DashboardShell({
     { href: "/app/cards", label: "Cards & QR", icon: CreditCardIcon },
     { href: "/app/team", label: "Team members", icon: UsersIcon },
     { href: "/app/settings", label: "Business settings", icon: SettingsIcon },
+    {
+      href: "/app/billing",
+      label: "Subscription & Billing",
+      icon: ShieldCheckIcon,
+    },
   ];
 
   const isActive = (href: string, exact?: boolean) =>
@@ -317,34 +335,51 @@ export default function DashboardShell({
           {!isLive && !isSuperAdmin && (
             <div
               role="alert"
-              className="mb-6 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-800 leading-relaxed"
+              className="mb-6 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             >
-              {isExpired ? (
-                <>
-                  Your <strong>{subscriptionPlan}</strong> plan expired on{" "}
-                  <strong className="font-semibold">
-                    <RenewalDateTimeValue renewalDate={subscription?.renewalDate} />
-                  </strong>
-                  . Your customer review page is closed and workspace edits are paused until your SaaS administrator renews your plan.
-                </>
-              ) : (
-                <>
-                  Your workspace subscription ({subscriptionPlan}) is currently{" "}
-                  <strong className="font-semibold">{effectiveStatus}</strong>. Profile edits, new card issuance, and public review intake are paused until reactivated by your SaaS administrator.
-                </>
+              <div className="leading-relaxed">
+                <span className="font-semibold">
+                  {warningBanner?.title ||
+                    (isExpired
+                      ? `Your ${subscriptionPlan} plan has expired.`
+                      : `Subscription ${effectiveStatus}`)}
+                </span>{" "}
+                —{" "}
+                {warningBanner?.message ||
+                  "Your public customer review page and paid operations are paused while your historical data stays intact."}
+              </div>
+              {pathname !== "/app/billing" && (
+                <Link
+                  href="/app/billing"
+                  className="shrink-0 inline-flex items-center justify-center rounded-control bg-red-700 hover:bg-red-800 px-3.5 py-2 text-xs font-semibold text-white transition-colors"
+                >
+                  Renew Subscription
+                </Link>
               )}
             </div>
           )}
-          {isLive && health?.expiringSoon && !isSuperAdmin && (
+          {isLive && warningBanner && !isSuperAdmin && (
             <div
               role="status"
-              className="mb-6 rounded-card border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 leading-relaxed"
+              className={`mb-6 rounded-card border px-4 py-3 text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                warningBanner.level === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : warningBanner.level === "error"
+                  ? "border-red-200 bg-red-50 text-red-900"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
             >
-              Your <strong>{subscriptionPlan}</strong> plan renews / expires on{" "}
-              <strong className="font-semibold">
-                <RenewalDateTimeValue renewalDate={subscription?.renewalDate} />
-              </strong>{" "}
-              (<RenewalCountdownBadge renewalDate={subscription?.renewalDate} />). Renew on time to keep your customer review page live.
+              <div className="leading-relaxed">
+                <strong>{warningBanner.title}:</strong> {warningBanner.message}
+              </div>
+              {warningBanner.level !== "success" && pathname !== "/app/billing" && (
+                <Link
+                  href="/app/billing"
+                  className="shrink-0 inline-flex items-center justify-center rounded-control bg-white border border-black/15 px-3 py-1.5 text-xs font-semibold text-ink hover:bg-canvas transition-colors"
+                >
+                  Manage Billing
+                </Link>
+              )}
             </div>
           )}
           {children}

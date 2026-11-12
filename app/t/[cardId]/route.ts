@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { notFound } from "next/navigation";
-import { getCardByToken, getBusinessById, getOrganizationById } from "@/lib/repo";
-import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
+import { canAccessPublicReviewPage } from "@/lib/entitlements";
+import { getCardByToken, getBusinessById } from "@/lib/repo";
 
 /**
  * NFC token resolution. A physical card's NFC payload points here. We resolve the
@@ -20,7 +20,7 @@ export async function GET(
     if (wantsJson) {
       return NextResponse.json(
         { error: "Card not found or inactive" },
-        { status: 404 }
+        { status: 404, headers: { "Cache-Control": "no-store" } }
       );
     }
     notFound();
@@ -30,20 +30,20 @@ export async function GET(
     if (wantsJson) {
       return NextResponse.json(
         { error: "Business not found" },
-        { status: 404 }
+        { status: 404, headers: { "Cache-Control": "no-store" } }
       );
     }
     notFound();
   }
-  if (wantsJson) {
-    const org = await getOrganizationById(business.organizationId);
-    if (org && !isSubscriptionActive(resolveSubscription(org))) {
-      return NextResponse.json(
-        { error: "Review page closed: subscription expired or paused" },
-        { status: 403 }
-      );
-    }
+  const access = await canAccessPublicReviewPage(business.id);
+  if (wantsJson && !access.allowed) {
+    return NextResponse.json(
+      { error: "Review page temporarily unavailable: subscription expired or paused" },
+      { status: 403, headers: { "Cache-Control": "private, no-store, max-age=0" } }
+    );
   }
   const url = `/r/${business.publicSlug}?src=nfc`;
-  return NextResponse.redirect(new URL(url, req.url));
+  const res = NextResponse.redirect(new URL(url, req.url));
+  res.headers.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
+  return res;
 }

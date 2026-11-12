@@ -1,8 +1,9 @@
 import { getCloudflareBindings } from "./cloudflare";
+import { DEFAULT_PLATFORM_SETTINGS, migrateDBInPlace } from "./planSeed";
 import type { DB } from "./types";
 
 function emptyDB(): DB {
-  return {
+  return migrateDBInPlace({
     users: [],
     organizations: [],
     businesses: [],
@@ -11,12 +12,21 @@ function emptyDB(): DB {
     sessions: [],
     events: [],
     feedback: [],
+    plans: [],
+    planFeatures: [],
+    subscriptions: [],
+    payments: [],
+    paymentWebhookEvents: [],
+    subscriptionAuditLogs: [],
+    coupons: [],
+    platformSettings: { ...DEFAULT_PLATFORM_SETTINGS },
     seq: {},
-  };
+  });
 }
 
 const g = globalThis as unknown as {
   __reviewlyCache?: DB | null;
+  __reviewlyFileMtime?: number | null;
   __reviewlyWriteQueue?: Promise<void>;
   __reviewlyD1Ready?: boolean;
 };
@@ -26,6 +36,7 @@ interface NodeFsPromises {
   mkdir(path: string, opts: { recursive: boolean }): Promise<void>;
   writeFile(path: string, data: string, encoding: "utf8"): Promise<void>;
   rename(oldPath: string, newPath: string): Promise<void>;
+  stat(path: string): Promise<{ mtimeMs: number }>;
 }
 
 interface NodePath {
@@ -127,20 +138,24 @@ async function saveToKV(db: DB): Promise<boolean> {
 async function load(): Promise<DB> {
   // 1. Cloudflare D1 (strongly consistent across edge isolates)
   const d1 = await loadFromD1();
-  if (d1) return d1;
+  if (d1) return migrateDBInPlace(d1);
 
   // 2. Cloudflare KV
   const kv = await loadFromKV();
-  if (kv) return kv;
+  if (kv) return migrateDBInPlace(kv);
 
   // 3. Local Node.js JSON store (data/db.json)
-  if (g.__reviewlyCache) return g.__reviewlyCache;
   const node = getNodeFs();
   if (node) {
     const dbPath = node.path.join(process.cwd(), "data", "db.json");
     try {
+      const st = await node.fs.stat(dbPath);
+      if (g.__reviewlyCache && g.__reviewlyFileMtime === st.mtimeMs) {
+        return migrateDBInPlace(g.__reviewlyCache);
+      }
       const raw = await node.fs.readFile(dbPath, "utf8");
-      g.__reviewlyCache = JSON.parse(raw) as DB;
+      g.__reviewlyCache = migrateDBInPlace(JSON.parse(raw) as DB);
+      g.__reviewlyFileMtime = st.mtimeMs;
       return g.__reviewlyCache;
     } catch {
       g.__reviewlyCache = emptyDB();
@@ -167,6 +182,12 @@ async function persist(db: DB): Promise<void> {
     const tmp = `${dbPath}.tmp`;
     await node.fs.writeFile(tmp, JSON.stringify(db, null, 2), "utf8");
     await node.fs.rename(tmp, dbPath);
+    try {
+      const st = await node.fs.stat(dbPath);
+      g.__reviewlyFileMtime = st.mtimeMs;
+    } catch {
+      g.__reviewlyFileMtime = null;
+    }
   }
 }
 

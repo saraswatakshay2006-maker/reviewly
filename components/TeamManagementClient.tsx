@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Role } from "@/lib/types";
@@ -13,13 +14,16 @@ interface TeamMemberItem {
   createdAt: string;
 }
 
+type AssignableRole = "owner" | "business_admin" | "branch_manager" | "staff";
+
 const ASSIGNABLE_ROLES: {
-  id: Extract<Role, "owner" | "branch_manager" | "staff">;
+  id: AssignableRole;
   label: string;
 }[] = [
-  { id: "branch_manager", label: "Branch Manager" },
-  { id: "staff", label: "Staff" },
-  { id: "owner", label: "Admin / Owner" },
+  { id: "business_admin", label: "Business Admin" },
+  { id: "branch_manager", label: "Business Manager" },
+  { id: "staff", label: "Business Staff" },
+  { id: "owner", label: "Business Owner" },
 ];
 
 export default function TeamManagementClient({
@@ -42,13 +46,15 @@ export default function TeamManagementClient({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"owner" | "branch_manager" | "staff">("staff");
+  const [role, setRole] = useState<AssignableRole>("staff");
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const atLimit = members.length >= teamLimit;
+  const isUnlimited = teamLimit < 0;
+  const atLimit = !isUnlimited && members.length >= teamLimit;
+  const overLimit = !isUnlimited && members.length > teamLimit;
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +85,7 @@ export default function TeamManagementClient({
 
   const handleRoleChange = async (
     memberId: string,
-    nextRole: "owner" | "branch_manager" | "staff"
+    nextRole: AssignableRole
   ) => {
     setError(null);
     setNotice(null);
@@ -139,19 +145,35 @@ export default function TeamManagementClient({
               </p>
             </div>
             <span className="rounded-md bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink tabular-nums">
-              {members.length} / {teamLimit} seats ({planLabel})
+              {members.length} / {isUnlimited ? "Unlimited" : teamLimit} seats ({planLabel})
             </span>
           </div>
 
           {!isPlanUsable ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800">
-              Your subscription is expired or paused. Renew your plan to add or update team members.
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                Your subscription is expired or paused. Renew your plan to add or update team members.
+              </span>
+              <Link
+                href="/app/billing"
+                className="rounded-control bg-red-700 hover:bg-red-800 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Renew Plan
+              </Link>
             </div>
           ) : atLimit ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-900">
-              You have used all <strong>{teamLimit}</strong> team seat
-              {teamLimit === 1 ? "" : "s"} included in your{" "}
-              <strong>{planLabel}</strong> plan. Upgrade to Growth (up to 5 seats) or Pro (up to 10 seats) to invite your team.
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {overLimit
+                  ? `You currently have ${members.length} accounts (plan limit: ${teamLimit} on ${planLabel}). Existing members remain intact, but new invitations are blocked.`
+                  : `You have used all ${teamLimit} team seat${teamLimit === 1 ? "" : "s"} included in your ${planLabel} plan. Upgrade to Growth (up to 5) or Pro (up to 10) for more seats.`}
+              </span>
+              <Link
+                href="/app/billing?tab=upgrade"
+                className="rounded-control bg-cobalt-600 hover:bg-cobalt-700 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Explore Plans
+              </Link>
             </div>
           ) : (
             <form onSubmit={handleAdd} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
@@ -202,7 +224,7 @@ export default function TeamManagementClient({
                   <select
                     value={role}
                     onChange={(e) =>
-                      setRole(e.target.value as "owner" | "branch_manager" | "staff")
+                      setRole(e.target.value as AssignableRole)
                     }
                     className={inputCls}
                   >
@@ -282,7 +304,7 @@ export default function TeamManagementClient({
                         onChange={(e) =>
                           void handleRoleChange(
                             m.id,
-                            e.target.value as "owner" | "branch_manager" | "staff"
+                            e.target.value as AssignableRole
                           )
                         }
                         className="min-h-[34px] rounded-control border border-black/[0.12] bg-white px-2.5 text-xs text-ink outline-none focus:border-cobalt-600"

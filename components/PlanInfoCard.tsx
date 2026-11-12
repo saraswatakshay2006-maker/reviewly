@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   getPlanEntitlements,
@@ -55,6 +56,9 @@ export default function PlanInfoCard({
   locationCount = 1,
   teamCount = 1,
   orgName,
+  planLabel,
+  supportTier,
+  gracePeriodDays = 0,
   compact = false,
   serverNowMs,
 }: {
@@ -63,6 +67,9 @@ export default function PlanInfoCard({
   locationCount?: number;
   teamCount?: number;
   orgName?: string;
+  planLabel?: string;
+  supportTier?: string;
+  gracePeriodDays?: number;
   compact?: boolean;
   serverNowMs?: number;
 }) {
@@ -76,8 +83,13 @@ export default function PlanInfoCard({
 
   const effectiveNow =
     nowMs ?? serverNowMs ?? Date.parse(subscription.updatedAt) ?? 0;
-  const health = getSubscriptionHealth(subscription, effectiveNow);
+  const health = getSubscriptionHealth(subscription, effectiveNow, gracePeriodDays);
   const planMeta = getPlanEntitlements(subscription);
+  const effectiveLabel = planLabel || planMeta.label;
+  const effectiveSupport = supportTier || planMeta.supportTier;
+  const locLimit = subscription.locationLimit ?? planMeta.locationLimit;
+  const teamLimit = subscription.teamLimit ?? planMeta.teamLimit;
+  const cardLimit = subscription.cardLimit ?? planMeta.cardLimit;
   const statusMeta = STATUS_META[health.effectiveStatus];
 
   const priceText =
@@ -121,7 +133,7 @@ export default function PlanInfoCard({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-display text-base font-semibold text-ink">
-                  {planMeta.label} Plan
+                  {effectiveLabel} Plan
                 </h2>
                 <span
                   className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${statusMeta.badgeClass}`}
@@ -129,7 +141,7 @@ export default function PlanInfoCard({
                   {statusMeta.label}
                 </span>
                 <span className="rounded-md bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-ink-secondary">
-                  {planMeta.supportTier}
+                  {effectiveSupport}
                 </span>
               </div>
               <p className="text-xs text-ink-muted mt-0.5">
@@ -140,25 +152,37 @@ export default function PlanInfoCard({
             </div>
           </div>
 
-          <div
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium self-start sm:self-auto ${
-              health.isUsable
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-red-50 text-red-700"
-            }`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                health.isUsable ? "bg-emerald-500" : "bg-red-500"
+          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+            <div
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                health.isUsable
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-red-50 text-red-700"
               }`}
-            />
-            <span>
-              {health.isUsable
-                ? "Customer review page live"
-                : health.expired
-                ? "Review page closed (Plan expired)"
-                : "Review page paused"}
-            </span>
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  health.isUsable ? "bg-emerald-500" : "bg-red-500"
+                }`}
+              />
+              <span>
+                {health.isUsable
+                  ? "Customer review page live"
+                  : health.expired
+                  ? "Review page closed (Plan expired)"
+                  : "Review page paused"}
+              </span>
+            </div>
+            <Link
+              href="/app/billing"
+              className={`inline-flex items-center rounded-control px-3 py-1.5 text-xs font-semibold transition-colors ${
+                health.isUsable
+                  ? "border border-black/[0.12] bg-canvas hover:bg-surface-subtle text-ink"
+                  : "bg-cobalt-600 hover:bg-cobalt-700 text-white"
+              }`}
+            >
+              {health.isUsable ? "Manage billing" : "Renew plan"}
+            </Link>
           </div>
         </div>
 
@@ -200,7 +224,7 @@ export default function PlanInfoCard({
               <span>Locations</span>
             </p>
             <p className="text-xs sm:text-sm font-semibold text-ink mt-1 tabular-nums">
-              {locationCount} / {planMeta.locationLimit}
+              {locationCount} / {locLimit < 0 ? "Unlimited" : locLimit}
             </p>
           </div>
 
@@ -210,7 +234,7 @@ export default function PlanInfoCard({
               <span>Team accounts</span>
             </p>
             <p className="text-xs sm:text-sm font-semibold text-ink mt-1 tabular-nums">
-              {teamCount} / {planMeta.teamLimit}
+              {teamCount} / {teamLimit < 0 ? "Unlimited" : teamLimit}
             </p>
           </div>
 
@@ -220,7 +244,7 @@ export default function PlanInfoCard({
               <span>NFC / QR cards</span>
             </p>
             <p className="text-xs sm:text-sm font-semibold text-ink mt-1 tabular-nums">
-              {activeCards} / {planMeta.cardLimit} active
+              {activeCards} / {cardLimit < 0 ? "Unlimited" : `${cardLimit} active`}
             </p>
           </div>
         </div>

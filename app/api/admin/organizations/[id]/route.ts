@@ -8,14 +8,14 @@ import {
 
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  plan: z.enum(["trial", "starter", "growth", "pro", "enterprise"]).optional(),
+  plan: z.string().min(1).max(40).optional(),
   status: z
-    .enum(["trialing", "active", "past_due", "suspended", "cancelled"])
+    .enum(["trialing", "active", "past_due", "expired", "suspended", "cancelled"])
     .optional(),
-  monthlyPriceInr: z.number().min(0).max(1_000_000).optional(),
-  cardLimit: z.number().int().min(1).max(10_000).optional(),
-  locationLimit: z.number().int().min(1).max(500).optional(),
-  teamLimit: z.number().int().min(1).max(1000).optional(),
+  monthlyPriceInr: z.number().min(0).max(10_000_000).optional(),
+  cardLimit: z.number().int().min(-1).max(100_000).optional(),
+  locationLimit: z.number().int().min(-1).max(10_000).optional(),
+  teamLimit: z.number().int().min(-1).max(50_000).optional(),
   renewalDate: z.string().max(40).nullable().optional(),
   notes: z.string().max(500).optional(),
 });

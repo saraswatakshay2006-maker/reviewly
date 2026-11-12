@@ -157,6 +157,19 @@ export async function requireSuperAdmin(): Promise<User | null> {
   return user;
 }
 
+export function isOwnerOrAdminRole(role: string): boolean {
+  return role === "owner" || role === "business_admin" || role === "super_admin";
+}
+
+export function canManageOperationsRole(role: string): boolean {
+  return (
+    role === "owner" ||
+    role === "business_admin" ||
+    role === "branch_manager" ||
+    role === "super_admin"
+  );
+}
+
 export function sessionCookieName(): string {
   return SESSION_COOKIE;
 }

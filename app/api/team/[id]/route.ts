@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/auth";
-import {
-  deleteOrgMember,
-  getOrganizationById,
-  updateOrgMemberRole,
-} from "@/lib/repo";
-import { isSubscriptionActive, resolveSubscription } from "@/lib/subscriptions";
+import { getCurrentUser, isOwnerOrAdminRole } from "@/lib/auth";
+import { isOrgSubscriptionActive } from "@/lib/entitlements";
+import { deleteOrgMember, updateOrgMemberRole } from "@/lib/repo";
 
 const patchSchema = z.object({
-  role: z.enum(["owner", "branch_manager", "staff"]),
+  role: z.enum(["owner", "business_admin", "branch_manager", "staff"]),
 });
 
 export async function PATCH(
@@ -20,15 +16,17 @@ export async function PATCH(
   if (!actor) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (actor.role !== "owner" && actor.role !== "super_admin") {
+  if (!isOwnerOrAdminRole(actor.role)) {
     return NextResponse.json(
-      { error: "Only workspace owners can manage team roles" },
+      { error: "Only workspace owners or business admins can manage team roles" },
       { status: 403 }
     );
   }
 
-  const org = await getOrganizationById(actor.organizationId);
-  if (org && actor.role !== "super_admin" && !isSubscriptionActive(resolveSubscription(org))) {
+  if (
+    actor.role !== "super_admin" &&
+    !(await isOrgSubscriptionActive(actor.organizationId))
+  ) {
     return NextResponse.json(
       { error: "Workspace subscription is expired or paused." },
       { status: 403 }
@@ -68,15 +66,17 @@ export async function DELETE(
   if (!actor) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (actor.role !== "owner" && actor.role !== "super_admin") {
+  if (!isOwnerOrAdminRole(actor.role)) {
     return NextResponse.json(
-      { error: "Only workspace owners can remove team members" },
+      { error: "Only workspace owners or business admins can remove team members" },
       { status: 403 }
     );
   }
 
-  const org = await getOrganizationById(actor.organizationId);
-  if (org && actor.role !== "super_admin" && !isSubscriptionActive(resolveSubscription(org))) {
+  if (
+    actor.role !== "super_admin" &&
+    !(await isOrgSubscriptionActive(actor.organizationId))
+  ) {
     return NextResponse.json(
       { error: "Workspace subscription is expired or paused." },
       { status: 403 }

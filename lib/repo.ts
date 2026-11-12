@@ -1,9 +1,17 @@
 import { readDB, writeDB, uid } from "./db";
 import {
+  buildPlanDefinitionFromRecord,
   createDefaultTrialSubscription,
   isSubscriptionActive,
   resolveSubscription,
+  subscriptionRecordToOrgSummary,
 } from "./subscriptions";
+import {
+  evaluateSubscriptionHealth,
+  pickLatestOrgSubscription,
+  syncExpiredSubscriptions,
+} from "./entitlements";
+import { DEFAULT_PLAN_RECORDS } from "./planSeed";
 import type {
   Business,
   CustomerSession,
@@ -12,8 +20,10 @@ import type {
   Member,
   Organization,
   OrganizationSubscription,
+  PlanRecord,
   ReviewCard,
   Role,
+  SubscriptionRecord,
   User,
 } from "./types";
 
@@ -50,15 +60,60 @@ export const createOrganization = (
   subscription?: Partial<OrganizationSubscription>
 ) =>
   writeDB((db) => {
-    const baseSub = createDefaultTrialSubscription();
+    const trialPlan =
+      db.plans.find((p) => p.id === "trial") ?? DEFAULT_PLAN_RECORDS[0];
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const trialDays = Math.max(1, trialPlan.trialDays || 14);
+    const defaultRenewalIso = new Date(
+      now.getTime() + trialDays * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    const baseSub: OrganizationSubscription = {
+      ...createDefaultTrialSubscription(),
+      monthlyPriceInr: trialPlan.monthlyPriceInr,
+      cardLimit: trialPlan.maxCards,
+      locationLimit: trialPlan.maxLocations,
+      teamLimit: trialPlan.maxTeamMembers,
+      renewalDate: defaultRenewalIso,
+      updatedAt: nowIso,
+    };
+    const mergedSub = subscription ? { ...baseSub, ...subscription } : baseSub;
+    const orgId = uid();
     const org: Organization = {
-      id: uid(),
+      id: orgId,
       name,
       slug,
-      createdAt: new Date().toISOString(),
-      subscription: subscription ? { ...baseSub, ...subscription } : baseSub,
+      createdAt: nowIso,
+      subscription: mergedSub,
     };
     db.organizations.push(org);
+
+    const planId = mergedSub.plan || "trial";
+    const subRecord: SubscriptionRecord = {
+      id: `sub_${uid()}`,
+      organizationId: orgId,
+      businessId: null,
+      planId,
+      status: mergedSub.status || "trialing",
+      paymentStatus: planId === "trial" ? "NONE" : "MANUAL",
+      billingInterval: mergedSub.billingInterval ?? "monthly",
+      amountInr: mergedSub.monthlyPriceInr ?? 0,
+      currency: "INR",
+      startAt: nowIso,
+      currentPeriodStart: nowIso,
+      currentPeriodEnd: mergedSub.renewalDate,
+      cancelledAt: null,
+      cancelAtPeriodEnd: false,
+      trialStart: planId === "trial" ? nowIso : null,
+      trialEnd: planId === "trial" ? mergedSub.renewalDate : null,
+      gatewaySubscriptionId: null,
+      customOverrides: null,
+      notes: mergedSub.notes || "",
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    db.subscriptions.push(subRecord);
     return org;
   });
 
@@ -234,7 +289,7 @@ export const updateOrgMemberRole = (
   organizationId: string,
   targetUserId: string,
   actingUserId: string,
-  role: Extract<Role, "owner" | "branch_manager" | "staff">
+  role: Extract<Role, "owner" | "business_admin" | "branch_manager" | "staff">
 ) =>
   writeDB((db) => {
     const target = db.users.find(
@@ -522,11 +577,64 @@ export const updateOrganizationSubscription = (
     }
     const current = resolveSubscription(org);
     const { name: _ignored, ...subPatch } = patch;
+    const nowIso = new Date().toISOString();
     org.subscription = {
       ...current,
       ...subPatch,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
     };
+
+    const existingRec = pickLatestOrgSubscription(db, orgId);
+    const prevSnapshot = existingRec
+      ? {
+          planId: existingRec.planId,
+          status: existingRec.status,
+          amountInr: existingRec.amountInr,
+          currentPeriodEnd: existingRec.currentPeriodEnd,
+        }
+      : null;
+
+    if (existingRec) {
+      if (subPatch.plan) existingRec.planId = subPatch.plan;
+      if (subPatch.status) existingRec.status = subPatch.status;
+      if (typeof subPatch.monthlyPriceInr === "number") {
+        existingRec.amountInr = subPatch.monthlyPriceInr;
+      }
+      if (subPatch.renewalDate !== undefined) {
+        existingRec.currentPeriodEnd = subPatch.renewalDate;
+      }
+      if (subPatch.billingInterval) {
+        existingRec.billingInterval = subPatch.billingInterval;
+      }
+      if (subPatch.notes !== undefined) existingRec.notes = subPatch.notes;
+
+      const overrides = { ...(existingRec.customOverrides || {}) };
+      if (typeof subPatch.locationLimit === "number") {
+        overrides.maxLocations = subPatch.locationLimit;
+      }
+      if (typeof subPatch.teamLimit === "number") {
+        overrides.maxTeamMembers = subPatch.teamLimit;
+      }
+      if (typeof subPatch.cardLimit === "number") {
+        overrides.maxCards = subPatch.cardLimit;
+      }
+      existingRec.customOverrides = overrides;
+      existingRec.updatedAt = nowIso;
+    }
+
+    db.subscriptionAuditLogs.push({
+      id: uid(),
+      subscriptionId: existingRec?.id || `sub_${orgId}`,
+      organizationId: orgId,
+      businessId: db.businesses.find((b) => b.organizationId === orgId)?.id ?? null,
+      adminId: null,
+      actorEmail: "super_admin",
+      action: "admin_update_subscription",
+      previousValues: prevSnapshot,
+      newValues: subPatch as Record<string, unknown>,
+      reason: subPatch.notes || "Updated from Super Admin workspace panel",
+      createdAt: nowIso,
+    });
     return org;
   });
 
@@ -562,6 +670,7 @@ export const deleteOrganizationCascade = (orgId: string, actingUserId: string) =
     db.sessions = db.sessions.filter((s) => s.organizationId !== orgId);
     db.events = db.events.filter((e) => e.organizationId !== orgId);
     db.feedback = db.feedback.filter((f) => f.organizationId !== orgId);
+    db.subscriptions = db.subscriptions.filter((s) => s.organizationId !== orgId);
     return { deletedOrgId: orgId };
   });
 
@@ -643,14 +752,30 @@ export const updateBusinessAdmin = (
     return biz;
   });
 
-export const getSaasSnapshot = () =>
-  readDB((db) => {
+export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
+  await syncExpiredSubscriptions(undefined, nowMs);
+
+  return readDB((db) => {
     const orgMap = new Map(db.organizations.map((o) => [o.id, o]));
     const bizMap = new Map(db.businesses.map((b) => [b.id, b]));
+    const planMap = new Map<string, PlanRecord>(db.plans.map((p) => [p.id, p]));
+    const graceDays = db.platformSettings.gracePeriodDays;
+
+    const plans = [...db.plans]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((plan) => ({
+        ...plan,
+        features: db.planFeatures.filter((pf) => pf.planId === plan.id),
+        definition: buildPlanDefinitionFromRecord(plan, db.planFeatures),
+      }));
 
     const organizations = db.organizations
       .map((org) => {
-        const sub = resolveSubscription(org);
+        const subRec = pickLatestOrgSubscription(db, org.id);
+        const plan = subRec ? planMap.get(subRec.planId) : undefined;
+        const sub = subRec
+          ? subscriptionRecordToOrgSummary(subRec, plan)
+          : resolveSubscription(org);
         const orgUsers = db.users
           .filter((u) => u.organizationId === org.id)
           .map((u) => ({
@@ -660,13 +785,19 @@ export const getSaasSnapshot = () =>
             role: u.role,
             createdAt: u.createdAt,
           }));
-        const orgBusinesses = db.businesses.filter((b) => b.organizationId === org.id);
+        const orgBusinesses = db.businesses.filter(
+          (b) => b.organizationId === org.id
+        );
         const bizIds = new Set(orgBusinesses.map((b) => b.id));
         const orgCards = db.cards.filter((c) => bizIds.has(c.businessId));
         const activeCards = orgCards.filter((c) => c.status === "active").length;
-        const orgSessions = db.sessions.filter((s) => s.organizationId === org.id);
+        const orgSessions = db.sessions.filter(
+          (s) => s.organizationId === org.id
+        );
         const orgEvents = db.events.filter((e) => e.organizationId === org.id);
-        const orgFeedback = db.feedback.filter((f) => f.organizationId === org.id);
+        const orgFeedback = db.feedback.filter(
+          (f) => f.organizationId === org.id
+        );
         const ratings = orgEvents
           .filter((e) => e.type === "rating_select" && e.rating != null)
           .map((e) => e.rating as number);
@@ -677,17 +808,21 @@ export const getSaasSnapshot = () =>
           slug: org.slug,
           createdAt: org.createdAt,
           subscription: sub,
+          subscriptionRecord: subRec,
           users: orgUsers,
           businesses: orgBusinesses,
           stats: {
             totalCards: orgCards.length,
             activeCards,
             sessions: orgSessions.length,
-            googleClicks: orgEvents.filter((e) => e.type === "google_click").length,
+            googleClicks: orgEvents.filter((e) => e.type === "google_click")
+              .length,
             feedbackCount: orgFeedback.length,
             ratingCount: ratings.length,
             averageRating: ratings.length
-              ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
+              ? Math.round(
+                  (ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10
+                ) / 10
               : null,
           },
         };
@@ -701,7 +836,8 @@ export const getSaasSnapshot = () =>
         name: u.name,
         role: u.role,
         organizationId: u.organizationId,
-        organizationName: orgMap.get(u.organizationId)?.name || "Unknown Workspace",
+        organizationName:
+          orgMap.get(u.organizationId)?.name || "Unknown Workspace",
         createdAt: u.createdAt,
       }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -724,7 +860,8 @@ export const getSaasSnapshot = () =>
       .map((f) => ({
         ...f,
         businessName: bizMap.get(f.businessId)?.name || "Unknown Business",
-        organizationName: orgMap.get(f.organizationId)?.name || "Unknown Workspace",
+        organizationName:
+          orgMap.get(f.organizationId)?.name || "Unknown Workspace",
       }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -734,63 +871,235 @@ export const getSaasSnapshot = () =>
       .map((e) => ({
         ...e,
         businessName: bizMap.get(e.businessId)?.name || "Unknown Business",
-        organizationName: orgMap.get(e.organizationId)?.name || "Unknown Workspace",
+        organizationName:
+          orgMap.get(e.organizationId)?.name || "Unknown Workspace",
       }));
 
     const clientOrgs = organizations.filter(
-      (o) => !o.users.every((u) => u.role === "super_admin") || o.businesses.length > 0
+      (o) =>
+        !o.users.every((u) => u.role === "super_admin") ||
+        o.businesses.length > 0
     );
+
+    const subscriptions = clientOrgs.map((o) => {
+      const rec = o.subscriptionRecord;
+      const health = rec
+        ? evaluateSubscriptionHealth(rec, graceDays, nowMs)
+        : null;
+      const owner =
+        o.users.find((u) => u.role === "owner") ??
+        o.users[0] ??
+        null;
+      const primaryBiz = o.businesses[0] ?? null;
+      const plan = rec ? planMap.get(rec.planId) : undefined;
+      return {
+        id: rec?.id || `sub_${o.id}`,
+        organizationId: o.id,
+        organizationName: o.name,
+        businessId: primaryBiz?.id ?? rec?.businessId ?? null,
+        businessName: primaryBiz?.name || o.name,
+        ownerName: owner?.name || "—",
+        ownerEmail: owner?.email || "—",
+        planId: rec?.planId || o.subscription.plan,
+        planName: plan?.name || o.subscription.plan,
+        amountInr: rec?.amountInr ?? o.subscription.monthlyPriceInr,
+        billingInterval: rec?.billingInterval ?? "monthly",
+        status: health?.effectiveStatus ?? o.subscription.status,
+        rawStatus: rec?.status ?? o.subscription.status,
+        paymentStatus: rec?.paymentStatus ?? "MANUAL",
+        startAt: rec?.startAt ?? o.createdAt,
+        currentPeriodStart: rec?.currentPeriodStart ?? o.createdAt,
+        currentPeriodEnd: rec?.currentPeriodEnd ?? o.subscription.renewalDate,
+        cancelAtPeriodEnd: rec?.cancelAtPeriodEnd ?? false,
+        remainingDays: health?.remainingDays ?? null,
+        countdownLabel: health?.countdownLabel ?? "No expiry",
+        isUsable: health?.isUsable ?? true,
+        customOverrides: rec?.customOverrides ?? null,
+        notes: rec?.notes ?? o.subscription.notes,
+        updatedAt: rec?.updatedAt ?? o.subscription.updatedAt,
+      };
+    });
+
+    const payments = [...db.payments]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((p) => ({
+        ...p,
+        organizationName:
+          orgMap.get(p.organizationId)?.name || "Unknown Workspace",
+        businessName:
+          (p.businessId && bizMap.get(p.businessId)?.name) ||
+          orgMap.get(p.organizationId)?.name ||
+          "Workspace",
+        planName: planMap.get(p.planId)?.name || p.planId,
+      }));
+
+    const auditLogs = [...db.subscriptionAuditLogs]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 200)
+      .map((a) => ({
+        ...a,
+        organizationName:
+          orgMap.get(a.organizationId)?.name || "Unknown Workspace",
+      }));
+
+    const activePaidSubs = subscriptions.filter(
+      (s) => s.isUsable && s.status === "active"
+    );
+    const activeTrialSubs = subscriptions.filter(
+      (s) => s.isUsable && s.status === "trialing"
+    );
+    const expiredSubs = subscriptions.filter((s) => s.status === "expired");
+    const cancelledSubs = subscriptions.filter((s) => s.status === "cancelled");
+    const suspendedSubs = subscriptions.filter((s) => s.status === "suspended");
+
+    const mrrInr = subscriptions
+      .filter((s) => s.isUsable && ["active", "past_due"].includes(s.status))
+      .reduce((sum, s) => {
+        if (s.billingInterval === "annual") {
+          return sum + Math.round((s.amountInr || 0) / 12);
+        }
+        return sum + (s.amountInr || 0);
+      }, 0);
+
+    const nowDate = new Date(nowMs);
+    const curMonthStart = Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      1
+    );
+    const curYearStart = Date.UTC(nowDate.getUTCFullYear(), 0, 1);
+    const successPayments = db.payments.filter((p) => p.status === "SUCCESS");
+    const failedPayments = db.payments.filter((p) => p.status === "FAILED");
+    const finalizedPayments = successPayments.length + failedPayments.length;
+
+    const monthlyRevenueInr = successPayments
+      .filter((p) => Date.parse(p.paidAt || p.createdAt) >= curMonthStart)
+      .reduce((sum, p) => sum + p.amountInr, 0);
+    const annualRevenueInr = successPayments
+      .filter((p) => Date.parse(p.paidAt || p.createdAt) >= curYearStart)
+      .reduce((sum, p) => sum + p.amountInr, 0);
+
+    const planDistribution = plans.map((p) => ({
+      planId: p.id,
+      planName: p.name,
+      count: subscriptions.filter((s) => s.planId === p.id).length,
+      activeCount: subscriptions.filter((s) => s.planId === p.id && s.isUsable)
+        .length,
+    }));
+
+    const upgradeLogs = db.subscriptionAuditLogs.filter((l) =>
+      ["plan_upgraded", "payment_verified_upgrade"].includes(l.action)
+    ).length;
+    const downgradeLogs = db.subscriptionAuditLogs.filter(
+      (l) => l.action === "plan_downgraded"
+    ).length;
+    const trialConvertedOrgs = new Set(
+      db.subscriptionAuditLogs
+        .filter((l) => l.action === "trial_converted")
+        .map((l) => l.organizationId)
+    ).size;
+    const everTrialedOrgs = new Set([
+      ...subscriptions
+        .filter((s) => s.planId === "trial")
+        .map((s) => s.organizationId),
+      ...db.subscriptions
+        .filter((s) => Boolean(s.trialStart))
+        .map((s) => s.organizationId),
+    ]).size;
+
+    const subscriptionAnalytics = {
+      totalSubscribedBusinesses: clientOrgs.length,
+      activeSubscriptions: activePaidSubs.length,
+      trialSubscriptions: activeTrialSubs.length,
+      expiredSubscriptions: expiredSubs.length,
+      cancelledSubscriptions: cancelledSubs.length,
+      suspendedSubscriptions: suspendedSubs.length,
+      mrrInr,
+      arrInr: mrrInr * 12,
+      monthlyRevenueInr,
+      annualRevenueInr,
+      paymentSuccessRatePct:
+        finalizedPayments > 0
+          ? Math.round((successPayments.length / finalizedPayments) * 100)
+          : 100,
+      successfulTransactions: successPayments.length,
+      failedTransactions: failedPayments.length,
+      planDistribution,
+      upgradeCount: upgradeLogs,
+      downgradeCount: downgradeLogs,
+      trialToPaidConversionPct:
+        everTrialedOrgs > 0
+          ? Math.round((trialConvertedOrgs / everTrialedOrgs) * 100)
+          : 0,
+      churnRatePct:
+        subscriptions.length > 0
+          ? Math.round(
+              ((expiredSubs.length + cancelledSubs.length) /
+                subscriptions.length) *
+                100
+            )
+          : 0,
+    };
 
     const summary = {
       totalOrgs: clientOrgs.length,
-      activeOrgs: clientOrgs.filter(
-        (o) => isSubscriptionActive(o.subscription) && o.subscription.status === "active"
-      ).length,
-      trialOrgs: clientOrgs.filter(
-        (o) => isSubscriptionActive(o.subscription) && o.subscription.status === "trialing"
-      ).length,
+      activeOrgs: activePaidSubs.length,
+      trialOrgs: activeTrialSubs.length,
       pausedOrPastDueOrgs: clientOrgs.filter(
         (o) =>
-          !isSubscriptionActive(o.subscription) ||
+          !isSubscriptionActive(o.subscription, nowMs, graceDays) ||
           o.subscription.status === "past_due"
       ).length,
-      mrrInr: clientOrgs
-        .filter(
-          (o) =>
-            isSubscriptionActive(o.subscription) &&
-            ["active", "trialing", "past_due"].includes(o.subscription.status)
-        )
-        .reduce((sum, o) => sum + (o.subscription.monthlyPriceInr || 0), 0),
+      mrrInr,
       totalUsers: db.users.length,
       totalBusinesses: db.businesses.length,
       totalCards: db.cards.length,
       activeCards: db.cards.filter((c) => c.status === "active").length,
       totalSessions: db.sessions.length,
-      totalGoogleClicks: db.events.filter((e) => e.type === "google_click").length,
+      totalGoogleClicks: db.events.filter((e) => e.type === "google_click")
+        .length,
       totalFeedback: db.feedback.length,
     };
 
     return {
       summary,
+      subscriptionAnalytics,
+      plans,
+      subscriptions,
+      payments,
+      auditLogs,
+      coupons: [...db.coupons].sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt)
+      ),
+      platformSettings: db.platformSettings,
       organizations,
       users,
       businesses: db.businesses.map((b) => ({
         ...b,
-        organizationName: orgMap.get(b.organizationId)?.name || "Unknown Workspace",
+        organizationName:
+          orgMap.get(b.organizationId)?.name || "Unknown Workspace",
       })),
       cards,
       feedback,
       recentEvents,
     };
   });
+};
 
 export const exportSanitizedBackup = () =>
   readDB((db) => ({
     exportedAt: new Date().toISOString(),
+    plans: db.plans,
+    planFeatures: db.planFeatures,
+    platformSettings: db.platformSettings,
     organizations: db.organizations.map((o) => ({
       ...o,
       subscription: resolveSubscription(o),
     })),
+    subscriptions: db.subscriptions,
+    payments: db.payments,
+    coupons: db.coupons,
+    subscriptionAuditLogs: db.subscriptionAuditLogs,
     users: db.users.map(({ passwordHash: _ph, salt: _s, ...safe }) => safe),
     businesses: db.businesses,
     members: db.members,
