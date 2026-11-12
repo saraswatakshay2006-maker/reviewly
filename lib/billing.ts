@@ -9,6 +9,7 @@ import {
 } from "./entitlements";
 import {
   buildPlanDefinitionFromRecord,
+  calculateSubscriptionPeriod,
   computeLimitUsage,
   parseRenewalTimestamp,
   subscriptionRecordToOrgSummary,
@@ -32,13 +33,7 @@ function addBillingPeriodIso(
   baseMs: number,
   interval: BillingInterval
 ): string {
-  if (interval === "annual") {
-    const d = new Date(baseMs);
-    d.setUTCFullYear(d.getUTCFullYear() + 1);
-    return d.toISOString();
-  }
-  // Monthly and custom intervals default to a 30-day UTC billing period
-  return new Date(baseMs + 30 * 86_400_000).toISOString();
+  return calculateSubscriptionPeriod(baseMs, interval).currentPeriodEndIso;
 }
 
 export async function listPlansWithFeatures(includeInactive = false) {
@@ -411,11 +406,20 @@ export async function calculateCheckoutQuote(params: {
       );
     }
 
-    const useAnnual =
-      params.billingInterval === "annual" &&
-      db.platformSettings.annualBillingEnabled &&
-      plan.annualPriceInr !== null &&
-      plan.annualPriceInr > 0;
+    if (params.billingInterval === "annual") {
+      const annualSupported =
+        db.platformSettings.annualBillingEnabled &&
+        plan.billingIntervalOptions.includes("annual") &&
+        plan.annualPriceInr !== null &&
+        plan.annualPriceInr > 0;
+      if (!annualSupported) {
+        throw new Error(
+          `Annual billing is not enabled or configured for the ${plan.name} plan.`
+        );
+      }
+    }
+
+    const useAnnual = params.billingInterval === "annual";
     const effectiveInterval: BillingInterval = useAnnual ? "annual" : "monthly";
     const baseAmountInr = useAnnual
       ? (plan.annualPriceInr as number)
@@ -432,18 +436,34 @@ export async function calculateCheckoutQuote(params: {
     let actionType: CheckoutQuote["actionType"] = "activate";
     let prorationCreditInr = 0;
 
+    const currentTierMonthly = currentPlan?.monthlyPriceInr ?? currentSub?.amountInr ?? 0;
     if (currentSub) {
       const currentHealth = evaluateSubscriptionHealth(
         currentSub,
         db.platformSettings.gracePeriodDays,
         nowMs
       );
-      if (currentSub.planId === plan.id) {
+      if (currentSub.planId === plan.id && currentSub.billingInterval === effectiveInterval) {
         actionType = "renew";
-      } else if (
-        currentPlan &&
-        plan.monthlyPriceInr > (currentSub.amountInr || currentPlan.monthlyPriceInr)
-      ) {
+      } else if (currentSub.planId === plan.id && effectiveInterval === "annual") {
+        actionType = "upgrade";
+        if (
+          currentHealth.isUsable &&
+          currentSub.status === "active" &&
+          currentSub.amountInr > 0 &&
+          currentSub.currentPeriodEnd
+        ) {
+          const endMs = parseRenewalTimestamp(currentSub.currentPeriodEnd);
+          const startMs = Date.parse(currentSub.currentPeriodStart);
+          if (endMs && Number.isFinite(startMs) && endMs > nowMs && endMs > startMs) {
+            const unusedRatio = Math.min(1, (endMs - nowMs) / (endMs - startMs));
+            prorationCreditInr = Math.max(
+              0,
+              Math.min(baseAmountInr - 1, Math.floor(currentSub.amountInr * unusedRatio))
+            );
+          }
+        }
+      } else if (currentPlan && plan.monthlyPriceInr > currentTierMonthly) {
         actionType = "upgrade";
         // Mid-cycle unused balance credit if upgrading an active paid subscription
         if (
@@ -462,10 +482,7 @@ export async function calculateCheckoutQuote(params: {
             );
           }
         }
-      } else if (
-        currentPlan &&
-        plan.monthlyPriceInr < (currentPlan.monthlyPriceInr || currentSub.amountInr)
-      ) {
+      } else if (currentPlan && plan.monthlyPriceInr < currentTierMonthly) {
         actionType = "downgrade";
       }
     }
@@ -1037,6 +1054,8 @@ export async function applyAdminSubscriptionAction(params: {
     let sub = pickLatestOrgSubscription(db, org.id);
     const primaryBiz = db.businesses.find((b) => b.organizationId === org.id);
     if (!sub) {
+      const defaultInterval = params.billingInterval || "monthly";
+      const defaultPeriod = calculateSubscriptionPeriod(nowMs, defaultInterval);
       sub = {
         id: `sub_${uid()}`,
         organizationId: org.id,
@@ -1044,12 +1063,12 @@ export async function applyAdminSubscriptionAction(params: {
         planId: "starter",
         status: "active",
         paymentStatus: "MANUAL",
-        billingInterval: "monthly",
-        amountInr: 299,
+        billingInterval: defaultInterval,
+        amountInr: defaultInterval === "annual" ? 2990 : 299,
         currency: "INR",
         startAt: nowIso,
-        currentPeriodStart: nowIso,
-        currentPeriodEnd: new Date(nowMs + 30 * 86_400_000).toISOString(),
+        currentPeriodStart: defaultPeriod.currentPeriodStartIso,
+        currentPeriodEnd: defaultPeriod.currentPeriodEndIso,
         cancelledAt: null,
         cancelAtPeriodEnd: false,
         trialStart: null,
@@ -1082,14 +1101,17 @@ export async function applyAdminSubscriptionAction(params: {
 
     switch (params.action) {
       case "activate_manual": {
+        const nextInterval = params.billingInterval ?? sub.billingInterval ?? "monthly";
+        sub.billingInterval = nextInterval;
         if (targetPlan) {
           sub.planId = targetPlan.id;
           sub.amountInr =
             typeof params.amountInr === "number"
               ? params.amountInr
+              : nextInterval === "annual" && targetPlan.annualPriceInr
+              ? targetPlan.annualPriceInr
               : targetPlan.monthlyPriceInr;
         }
-        const days = Math.max(1, params.extendDays ?? 30);
         sub.status = "active";
         // Non-negotiable rule: manual activation never fakes a Razorpay payment
         sub.paymentStatus = "MANUAL";
@@ -1098,11 +1120,17 @@ export async function applyAdminSubscriptionAction(params: {
         sub.currentPeriodStart = nowIso;
         sub.currentPeriodEnd =
           params.customExpiryIso ||
-          new Date(nowMs + days * 86_400_000).toISOString();
+          (typeof params.extendDays === "number" && params.extendDays > 0
+            ? new Date(nowMs + Math.trunc(params.extendDays) * 86_400_000).toISOString()
+            : calculateSubscriptionPeriod(nowMs, nextInterval).currentPeriodEndIso);
         break;
       }
       case "extend": {
-        const days = Math.max(1, Math.min(3650, params.extendDays ?? 30));
+        const rawDays = params.extendDays ?? 30;
+        if (!Number.isInteger(rawDays) || rawDays < 1 || rawDays > 3650) {
+          throw new Error("Extension days must be a positive integer between 1 and 3650.");
+        }
+        const days = rawDays;
         const currentEndMs = parseRenewalTimestamp(sub.currentPeriodEnd);
         const anchorMs =
           currentEndMs && currentEndMs > nowMs ? currentEndMs : nowMs;
@@ -1116,14 +1144,30 @@ export async function applyAdminSubscriptionAction(params: {
       }
       case "change_plan": {
         if (!targetPlan) throw new Error("Target plan required");
+        const prevInterval = sub.billingInterval;
+        const nextInterval = params.billingInterval ?? sub.billingInterval;
         sub.planId = targetPlan.id;
-        sub.billingInterval = params.billingInterval ?? sub.billingInterval;
+        sub.billingInterval = nextInterval;
         sub.amountInr =
           typeof params.amountInr === "number"
             ? params.amountInr
-            : sub.billingInterval === "annual" && targetPlan.annualPriceInr
+            : nextInterval === "annual" && targetPlan.annualPriceInr
             ? targetPlan.annualPriceInr
             : targetPlan.monthlyPriceInr;
+        if (params.customExpiryIso) {
+          sub.currentPeriodEnd = params.customExpiryIso;
+        } else if (nextInterval === "annual" && prevInterval !== "annual") {
+          const parsedStart = Date.parse(sub.currentPeriodStart || "");
+          const recentCycle = Number.isFinite(parsedStart) && nowMs - parsedStart <= 7 * 86_400_000;
+          const anchorMs = recentCycle ? parsedStart : nowMs;
+          if (!recentCycle) {
+            sub.currentPeriodStart = nowIso;
+          }
+          sub.currentPeriodEnd = calculateSubscriptionPeriod(
+            anchorMs,
+            "annual"
+          ).currentPeriodEndIso;
+        }
         if (targetPlan.id !== "enterprise") {
           sub.customOverrides = null;
         }
@@ -1139,10 +1183,11 @@ export async function applyAdminSubscriptionAction(params: {
         sub.cancelAtPeriodEnd = false;
         const endMs = parseRenewalTimestamp(sub.currentPeriodEnd);
         if (endMs !== null && endMs <= nowMs) {
-          const days = Math.max(1, params.extendDays ?? 30);
-          sub.currentPeriodEnd = new Date(
-            nowMs + days * 86_400_000
-          ).toISOString();
+          sub.currentPeriodStart = nowIso;
+          sub.currentPeriodEnd =
+            typeof params.extendDays === "number" && params.extendDays > 0
+              ? new Date(nowMs + Math.trunc(params.extendDays) * 86_400_000).toISOString()
+              : calculateSubscriptionPeriod(nowMs, sub.billingInterval).currentPeriodEndIso;
         }
         break;
       }
@@ -1369,3 +1414,26 @@ export async function getPaymentInvoiceForOrg(
     };
   });
 }
+
+export async function extendBusinessSubscription(
+  businessId: string,
+  days: number,
+  adminId: string,
+  reason: string,
+  adminEmail = "admin@reviewly.internal"
+) {
+  const orgId = await readDB(
+    (db) => db.businesses.find((b) => b.id === businessId)?.organizationId ?? null
+  );
+  if (!orgId) throw new Error("Business not found");
+  return applyAdminSubscriptionAction({
+    organizationId: orgId,
+    adminId,
+    adminEmail,
+    action: "extend",
+    extendDays: days,
+    reason,
+  });
+}
+
+export const activateSubscriptionAfterVerifiedPayment = finalizeVerifiedPayment;

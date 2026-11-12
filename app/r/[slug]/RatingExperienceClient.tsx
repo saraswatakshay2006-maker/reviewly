@@ -66,25 +66,58 @@ export default function RatingExperienceClient({
 
   useEffect(() => {
     const endMs = parseRenewalTimestamp(expiresAtIso);
-    if (endMs === null) return;
-    const cutoffMs = endMs + Math.max(0, gracePeriodDays) * 86_400_000;
-    const check = () => {
-      if (Date.now() >= cutoffMs) {
+    const cutoffMs =
+      endMs !== null ? endMs + Math.max(0, gracePeriodDays) * 86_400_000 : null;
+    const checkLocalExpiry = () => {
+      if (cutoffMs !== null && Date.now() >= cutoffMs) {
         setExpiredLocked(true);
         return true;
       }
       return false;
     };
-    if (check()) return;
-    const msLeft = cutoffMs - Date.now();
+    if (checkLocalExpiry()) return;
+
+    let lastServerCheck = 0;
+    const checkServerStatus = async (force = false) => {
+      if (checkLocalExpiry()) return;
+      const now = Date.now();
+      if (!force && now - lastServerCheck < 5000) return;
+      lastServerCheck = now;
+      try {
+        const res = await fetch(
+          `/api/public/review-status?businessId=${encodeURIComponent(businessId)}`,
+          { cache: "no-store" }
+        );
+        if (res.status === 403 || res.status === 404) {
+          setExpiredLocked(true);
+        }
+      } catch {
+        // Offline/transient error stays handled on next interaction
+      }
+    };
+
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === "visible") {
+        void checkServerStatus();
+      }
+    };
+
+    const msLeft = cutoffMs !== null ? cutoffMs - Date.now() : null;
     const timeoutId =
-      msLeft <= 2_147_483_647 ? window.setTimeout(check, msLeft + 50) : null;
-    const intervalId = window.setInterval(check, 15_000);
+      msLeft !== null && msLeft <= 2_147_483_647
+        ? window.setTimeout(checkLocalExpiry, msLeft + 50)
+        : null;
+    const intervalId = window.setInterval(checkLocalExpiry, 15_000);
+    window.addEventListener("focus", onFocusOrVisible);
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+
     return () => {
       if (timeoutId !== null) window.clearTimeout(timeoutId);
       window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocusOrVisible);
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
     };
-  }, [expiresAtIso, gracePeriodDays]);
+  }, [businessId, expiresAtIso, gracePeriodDays]);
 
   // Auto-generated unique business-oriented review state
   const [draftOpen, setDraftOpen] = useState(true);
@@ -190,6 +223,8 @@ export default function RatingExperienceClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "generate",
+          businessId,
+          sessionId,
           businessName,
           category: businessCategory,
           address: businessAddress,
@@ -201,6 +236,10 @@ export default function RatingExperienceClient({
           avoidOpenings: avoidOpeningsRef.current,
         }),
       });
+      if (res.status === 403) {
+        setExpiredLocked(true);
+        return;
+      }
       const data = await res.json();
       if (data.ok && typeof data.suggested === "string" && data.suggested.trim()) {
         rememberDraft(data.suggested, data.openingKey);
@@ -226,8 +265,17 @@ export default function RatingExperienceClient({
       const res = await fetch("/api/ai-assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "polish", text: googleDraft }),
+        body: JSON.stringify({
+          mode: "polish",
+          businessId,
+          sessionId,
+          text: googleDraft,
+        }),
       });
+      if (res.status === 403) {
+        setExpiredLocked(true);
+        return;
+      }
       const data = await res.json();
       if (data.ok && typeof data.suggested === "string" && data.suggested.trim()) {
         setGoogleDraft(data.suggested);
@@ -295,7 +343,7 @@ export default function RatingExperienceClient({
           Review page temporarily unavailable
         </h2>
         <p className="text-xs text-ink-secondary leading-relaxed">
-          This business&apos;s subscription has expired. Please contact {businessName} directly for assistance.
+          This business&apos;s review service is currently paused. Please contact the business directly for assistance.
         </p>
       </div>
     );
@@ -670,8 +718,17 @@ function PrivateFeedback({
       const res = await fetch("/api/ai-assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "polish", text: message }),
+        body: JSON.stringify({
+          mode: "polish",
+          businessId,
+          sessionId,
+          text: message,
+        }),
       });
+      if (res.status === 403) {
+        onExpired?.();
+        return;
+      }
       const data = await res.json();
       if (data.ok && data.suggested) {
         setSuggestion(data.suggested);

@@ -226,6 +226,23 @@ export default function BillingPortalClient({
     router.refresh();
   }, [router]);
 
+  useEffect(() => {
+    let lastReload = 0;
+    const onFocusOrVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastReload < 5_000) return;
+      lastReload = now;
+      void reloadOverview();
+    };
+    window.addEventListener("focus", onFocusOrVisible);
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+    return () => {
+      window.removeEventListener("focus", onFocusOrVisible);
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
+    };
+  }, [reloadOverview]);
+
   const fetchQuote = useCallback(
     async (planId: string, billInterval: "monthly" | "annual", code: string) => {
       setSelectedPlanId(planId);

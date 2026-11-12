@@ -15,6 +15,7 @@ const patchSchema = z.object({
     .enum(["trialing", "active", "past_due", "expired", "suspended", "cancelled"])
     .optional(),
   monthlyPriceInr: z.number().min(0).max(10_000_000).optional(),
+  billingInterval: z.enum(["monthly", "annual", "custom"]).optional(),
   cardLimit: z.number().int().min(-1).max(100_000).optional(),
   locationLimit: z.number().int().min(-1).max(10_000).optional(),
   teamLimit: z.number().int().min(-1).max(50_000).optional(),

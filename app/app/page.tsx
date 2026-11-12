@@ -79,6 +79,8 @@ export default async function DashboardOverview({
             supportTier={ctx.supportTier}
             billingInterval={ctx.subscription.billingInterval}
             paymentStatus={ctx.subscription.paymentStatus}
+            startAt={ctx.subscription.startAt}
+            currentPeriodStart={ctx.subscription.currentPeriodStart}
             planHighlights={ctx.plan.highlights}
             featureItems={featureItems}
             gracePeriodDays={ctx.settings.gracePeriodDays}
@@ -245,8 +247,8 @@ export default async function DashboardOverview({
             target="_blank"
             rel="noreferrer"
             className={`inline-flex items-center gap-1.5 rounded-control px-4 py-2 text-xs sm:text-sm font-medium transition-colors ${isPlanUsable
-                ? "bg-cobalt-600 hover:bg-cobalt-700 text-white"
-                : "bg-red-50 border border-red-200 text-red-700 hover:bg-red-100"
+              ? "bg-cobalt-600 hover:bg-cobalt-700 text-white"
+              : "bg-red-50 border border-red-200 text-red-700 hover:bg-red-100"
               }`}
           >
             <span>{isPlanUsable ? "Open live page" : "Review page closed"}</span>
@@ -267,6 +269,8 @@ export default async function DashboardOverview({
           supportTier={ctx.supportTier}
           billingInterval={ctx.subscription.billingInterval}
           paymentStatus={ctx.subscription.paymentStatus}
+          startAt={ctx.subscription.startAt}
+          currentPeriodStart={ctx.subscription.currentPeriodStart}
           planHighlights={ctx.plan.highlights}
           featureItems={featureItems}
           gracePeriodDays={ctx.settings.gracePeriodDays}
@@ -496,10 +500,10 @@ export default async function DashboardOverview({
                       <div className="flex items-center gap-3">
                         <span
                           className={`h-8 w-8 rounded-lg inline-flex items-center justify-center shrink-0 ${isGoogle
-                              ? "bg-cobalt-50 text-cobalt-600"
-                              : isFeedback
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-amber-50 text-amber-600"
+                            ? "bg-cobalt-50 text-cobalt-600"
+                            : isFeedback
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-amber-50 text-amber-600"
                             }`}
                         >
                           {isGoogle ? (

@@ -16,6 +16,7 @@ import {
 import {
   PLAN_DEFAULTS,
   SUBSCRIPTION_STATUSES,
+  calculateSubscriptionPeriod,
   getSubscriptionHealth,
   parseRenewalTimestamp,
   type EffectiveSubscriptionStatus,
@@ -29,6 +30,7 @@ import AdminSubscriptionSuite, {
   type AdminSubscriptionView,
 } from "./AdminSubscriptionSuite";
 import type {
+  BillingInterval,
   CouponRecord,
   OrganizationSubscription,
   PlatformBillingSettings,
@@ -668,6 +670,9 @@ function ClientOrganizationCard({
 }) {
   const [plan, setPlan] = useState<SubscriptionPlan>(org.subscription.plan);
   const [status, setStatus] = useState<SubscriptionStatus>(org.subscription.status);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(
+    org.subscription.billingInterval ?? "monthly"
+  );
   const [price, setPrice] = useState<number>(org.subscription.monthlyPriceInr);
   const [cardLimit, setCardLimit] = useState<number>(org.subscription.cardLimit);
   const [locationLimit, setLocationLimit] = useState<number>(
@@ -714,7 +719,12 @@ function ClientOrganizationCard({
     setPlan(nextPlan);
     const dbPlan = plans.find((p) => p.id === nextPlan);
     if (dbPlan) {
-      setPrice(dbPlan.monthlyPriceInr);
+      const annualPrice = dbPlan.annualPriceInr ?? 0;
+      setPrice(
+        billingInterval === "annual" && annualPrice > 0
+          ? annualPrice
+          : dbPlan.monthlyPriceInr
+      );
       setCardLimit(dbPlan.maxCards);
       setLocationLimit(dbPlan.maxLocations);
       setTeamLimit(dbPlan.maxTeamMembers);
@@ -726,6 +736,23 @@ function ClientOrganizationCard({
       setCardLimit(fallback.cardLimit);
       setLocationLimit(fallback.locationLimit);
       setTeamLimit(fallback.teamLimit);
+    }
+  };
+
+  const handleIntervalChange = (nextInterval: BillingInterval) => {
+    setBillingInterval(nextInterval);
+    const dbPlan = plans.find((p) => p.id === plan);
+    if (dbPlan) {
+      const annualPrice = dbPlan.annualPriceInr ?? 0;
+      if (nextInterval === "annual" && annualPrice > 0) {
+        setPrice(annualPrice);
+      } else if (nextInterval === "monthly") {
+        setPrice(dbPlan.monthlyPriceInr);
+      }
+    }
+    if (nextInterval === "monthly" || nextInterval === "annual") {
+      const period = calculateSubscriptionPeriod(Date.now(), nextInterval);
+      setRenewalDate(toLocalDatetimeInputValue(period.currentPeriodEndIso));
     }
   };
 
@@ -755,6 +782,7 @@ function ClientOrganizationCard({
         body: JSON.stringify({
           plan,
           status: effectiveNextStatus,
+          billingInterval,
           monthlyPriceInr: Number(price) || 0,
           cardLimit: Number(cardLimit) < 0 ? -1 : Math.max(1, Number(cardLimit) || 1),
           locationLimit:
@@ -907,7 +935,22 @@ function ClientOrganizationCard({
 
         <div>
           <label className="block text-[11px] font-medium text-ink-muted mb-1">
-            Price (₹ / mo)
+            Billing Interval
+          </label>
+          <select
+            value={billingInterval}
+            onChange={(e) => handleIntervalChange(e.target.value as BillingInterval)}
+            className={inputCls}
+          >
+            <option value="monthly">Monthly (1 Month)</option>
+            <option value="annual">Annual (1 Year)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-medium text-ink-muted mb-1">
+            Price ({billingInterval === "annual" ? "₹ / yr" : "₹ / mo"})
           </label>
           <input
             type="number"

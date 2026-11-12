@@ -1,0 +1,49 @@
+/
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+  Cloudflare-CDN-Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+
+/r/*
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+  Cloudflare-CDN-Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+
+/review/*
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+  Cloudflare-CDN-Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+
+/t/*
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+  Cloudflare-CDN-Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+
+/app/*
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+  Cloudflare-CDN-Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+
+/admin/*
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+  Cloudflare-CDN-Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+
+/api/*
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+  Cloudflare-CDN-Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+

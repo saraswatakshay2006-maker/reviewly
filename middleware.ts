@@ -20,6 +20,7 @@ export function middleware(_req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
     "/r/:path*",
     "/review/:path*",
     "/t/:path*",

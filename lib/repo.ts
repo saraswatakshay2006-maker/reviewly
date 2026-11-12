@@ -1,6 +1,7 @@
 import { readDB, writeDB, uid } from "./db";
 import {
   buildPlanDefinitionFromRecord,
+  calculateSubscriptionPeriod,
   createDefaultTrialSubscription,
   isSubscriptionActive,
   resolveSubscription,
@@ -617,11 +618,21 @@ export const updateOrganizationSubscription = (
       if (typeof subPatch.monthlyPriceInr === "number") {
         existingRec.amountInr = subPatch.monthlyPriceInr;
       }
-      if (subPatch.renewalDate !== undefined) {
-        existingRec.currentPeriodEnd = subPatch.renewalDate;
-      }
       if (subPatch.billingInterval) {
         existingRec.billingInterval = subPatch.billingInterval;
+      }
+      if (subPatch.renewalDate !== undefined) {
+        existingRec.currentPeriodEnd = subPatch.renewalDate;
+      } else if (
+        subPatch.billingInterval === "annual" ||
+        subPatch.billingInterval === "monthly"
+      ) {
+        const period = calculateSubscriptionPeriod(
+          Date.now(),
+          subPatch.billingInterval
+        );
+        existingRec.currentPeriodStart = period.currentPeriodStartIso;
+        existingRec.currentPeriodEnd = period.currentPeriodEndIso;
       }
       if (subPatch.notes !== undefined) existingRec.notes = subPatch.notes;
 

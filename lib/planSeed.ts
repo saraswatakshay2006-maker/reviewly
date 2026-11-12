@@ -7,6 +7,7 @@ import type {
   PlatformBillingSettings,
   SubscriptionRecord,
 } from "./types";
+import { calculateSubscriptionPeriod } from "./subscriptions";
 
 export const FEATURE_CATALOG: {
   key: FeatureKey;
@@ -562,6 +563,60 @@ export function migrateDBInPlace(db: DB): DB {
     if (Number.isFinite(endMs) && nowCheckMs >= endMs + graceMs) {
       sub.status = "expired";
     }
+  }
+
+  // Idempotently repair previously purchased or activated annual subscriptions whose cycle
+  // was accidentally set to ~30 days (<= 45 days) unless an admin intentionally shortened it.
+  const MAX_MISDATED_ANNUAL_MS = 45 * 86_400_000;
+  for (const sub of db.subscriptions) {
+    if (sub.billingInterval !== "annual") continue;
+    if (sub.status === "suspended" || sub.status === "cancelled") continue;
+    if (!sub.currentPeriodEnd) continue;
+    if (!isClientOrg(sub.organizationId)) continue;
+    const anchorIso = sub.currentPeriodStart || sub.startAt || sub.createdAt;
+    const anchorMs = Date.parse(anchorIso);
+    const endMs = Date.parse(sub.currentPeriodEnd);
+    if (!Number.isFinite(anchorMs) || !Number.isFinite(endMs)) continue;
+    if (endMs - anchorMs > MAX_MISDATED_ANNUAL_MS) continue;
+
+    const alreadyRepaired = db.subscriptionAuditLogs.some(
+      (l) =>
+        l.organizationId === sub.organizationId &&
+        l.subscriptionId === sub.id &&
+        (l.action === "migration_repaired_annual_expiry" ||
+          l.action === "admin_set_custom_expiry" ||
+          l.action === "admin_expire_now")
+    );
+    if (alreadyRepaired) continue;
+
+    const repairedPeriod = calculateSubscriptionPeriod(anchorMs, "annual");
+    const previousEnd = sub.currentPeriodEnd;
+    sub.currentPeriodEnd = repairedPeriod.currentPeriodEndIso;
+    if (Date.parse(repairedPeriod.currentPeriodEndIso) + graceMs > nowCheckMs) {
+      sub.status = "active";
+    }
+    sub.updatedAt = new Date(nowCheckMs).toISOString();
+    db.subscriptionAuditLogs.unshift({
+      id: `audit_repair_annual_${sub.id}`,
+      organizationId: sub.organizationId,
+      subscriptionId: sub.id,
+      businessId: sub.businessId ?? null,
+      adminId: "system_migration",
+      actorEmail: "system@reviewly",
+      action: "migration_repaired_annual_expiry",
+      previousValues: {
+        billingInterval: sub.billingInterval,
+        currentPeriodStart: anchorIso,
+        currentPeriodEnd: previousEnd,
+      },
+      newValues: {
+        billingInterval: sub.billingInterval,
+        currentPeriodStart: repairedPeriod.currentPeriodStartIso,
+        currentPeriodEnd: repairedPeriod.currentPeriodEndIso,
+      },
+      reason: "Automatically repaired mis-dated annual subscription whose initial cycle was <= 45 days.",
+      createdAt: new Date(nowCheckMs).toISOString(),
+    });
   }
 
   return db;

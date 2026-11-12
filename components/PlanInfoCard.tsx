@@ -69,6 +69,8 @@ export default function PlanInfoCard({
   supportTier,
   billingInterval,
   paymentStatus,
+  startAt,
+  currentPeriodStart,
   planHighlights,
   featureItems,
   gracePeriodDays = 0,
@@ -84,6 +86,8 @@ export default function PlanInfoCard({
   supportTier?: string;
   billingInterval?: BillingInterval;
   paymentStatus?: string;
+  startAt?: string | null;
+  currentPeriodStart?: string | null;
   planHighlights?: string[];
   featureItems?: PlanFeatureDisplayItem[];
   gracePeriodDays?: number;
@@ -142,6 +146,18 @@ export default function PlanInfoCard({
         : subscription.plan === "trial"
           ? "Free trial"
           : null;
+
+  const startedOnIso = currentPeriodStart || startAt || subscription.updatedAt || null;
+  const periodProgressPct = (() => {
+    if (!startedOnIso || !subscription.renewalDate) return null;
+    const startMs = Date.parse(startedOnIso);
+    const endMs = Date.parse(subscription.renewalDate);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return health.expired ? 100 : null;
+    }
+    const pct = ((effectiveNow - startMs) / (endMs - startMs)) * 100;
+    return Math.min(100, Math.max(0, Math.round(pct)));
+  })();
 
   return (
     <section
@@ -233,24 +249,45 @@ export default function PlanInfoCard({
                     : `Review page paused (${statusMeta.label})`}
               </span>
             </div>
-            <Link
-              href="/app/billing"
-              className={`inline-flex items-center rounded-control px-3 py-1.5 text-xs font-semibold transition-colors ${
-                health.isUsable
-                  ? "border border-black/[0.12] bg-canvas hover:bg-surface-subtle text-ink"
-                  : "bg-cobalt-600 hover:bg-cobalt-700 text-white"
-              }`}
-            >
-              {health.isUsable ? "Manage billing" : "Renew plan"}
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/app/billing"
+                className={`inline-flex items-center rounded-control px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  health.isUsable
+                    ? "border border-black/[0.12] bg-canvas hover:bg-surface-subtle text-ink"
+                    : "bg-cobalt-600 hover:bg-cobalt-700 text-white"
+                }`}
+              >
+                {health.isUsable ? "Renew plan" : "Renew now"}
+              </Link>
+              <Link
+                href="/app/billing?tab=upgrade"
+                className="inline-flex items-center rounded-control border border-cobalt-200 bg-cobalt-50/70 hover:bg-cobalt-100/70 px-3 py-1.5 text-xs font-semibold text-cobalt-700 transition-colors"
+              >
+                Upgrade plan
+              </Link>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5 col-span-2 lg:col-span-1">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
             <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
               <CalendarIcon size={13} />
-              <span>Renewal / Expiry time</span>
+              <span>Started On</span>
+            </p>
+            <p className="text-xs sm:text-sm font-semibold text-ink mt-1">
+              <RenewalDateTimeValue
+                renewalDate={startedOnIso}
+                fallback="Not set"
+              />
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
+              <CalendarIcon size={13} />
+              <span>Expires On</span>
             </p>
             <p className="text-xs sm:text-sm font-semibold text-ink mt-1">
               <RenewalDateTimeValue
@@ -263,7 +300,7 @@ export default function PlanInfoCard({
           <div className="rounded-xl bg-canvas border border-black/[0.06] px-3.5 py-2.5">
             <p className="text-[11px] font-medium text-ink-muted flex items-center gap-1.5">
               <ClockIcon size={13} />
-              <span>Days left / Time remaining</span>
+              <span>Days Left</span>
             </p>
             <p
               className={`text-xs sm:text-sm font-semibold mt-1 tabular-nums ${
@@ -274,7 +311,14 @@ export default function PlanInfoCard({
                     : "text-ink"
               }`}
             >
-              {health.hasExpiry && health.isUsable && health.remainingDays !== null ? (
+              {health.expired ? (
+                <span>
+                  Subscription expired
+                  <span className="block text-[11px] font-normal text-red-600 mt-0.5">
+                    0 days left
+                  </span>
+                </span>
+              ) : health.hasExpiry && health.isUsable && health.remainingDays !== null ? (
                 <span>
                   {health.remainingDays === 0
                     ? "Expires today"
@@ -322,6 +366,36 @@ export default function PlanInfoCard({
             </p>
           </div>
         </div>
+
+        {periodProgressPct !== null && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-ink-muted">
+              <span>Current subscription period progress</span>
+              <span className="tabular-nums font-medium text-ink-secondary">
+                {periodProgressPct}% elapsed
+              </span>
+            </div>
+            <div
+              className="h-2 w-full rounded-full bg-surface-subtle overflow-hidden"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={periodProgressPct}
+              aria-label="Subscription period elapsed"
+            >
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  !health.isUsable
+                    ? "bg-red-500"
+                    : health.expiringSoon
+                      ? "bg-amber-500"
+                      : "bg-cobalt-600"
+                }`}
+                style={{ width: `${periodProgressPct}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {!compact && featureItems && featureItems.length > 0 ? (
           <div className="space-y-1.5 pt-1">

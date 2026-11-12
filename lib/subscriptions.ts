@@ -265,6 +265,89 @@ export const SUBSCRIPTION_STATUSES: {
   { id: "cancelled", label: "Cancelled" },
 ];
 
+/**
+ * Adds calendar months in UTC while clamping end-of-month dates and leap days
+ * (e.g. Jan 31 + 1 month -> Feb 28/29, Feb 29 + 1 year -> Feb 28).
+ */
+export function addUtcCalendarMonths(baseDateOrMs: number | string | Date, months: number): Date {
+  const base =
+    baseDateOrMs instanceof Date
+      ? baseDateOrMs
+      : new Date(typeof baseDateOrMs === "number" ? baseDateOrMs : Date.parse(baseDateOrMs));
+  const ms = base.getTime();
+  const safeBase = Number.isFinite(ms) ? base : new Date();
+  const totalMonths = safeBase.getUTCFullYear() * 12 + safeBase.getUTCMonth() + months;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonth = ((totalMonths % 12) + 12) % 12;
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(targetYear, targetMonth + 1, 0)
+  ).getUTCDate();
+  const targetDay = Math.min(safeBase.getUTCDate(), lastDayOfTargetMonth);
+
+  return new Date(
+    Date.UTC(
+      targetYear,
+      targetMonth,
+      targetDay,
+      safeBase.getUTCHours(),
+      safeBase.getUTCMinutes(),
+      safeBase.getUTCSeconds(),
+      safeBase.getUTCMilliseconds()
+    )
+  );
+}
+
+/**
+ * Single source of truth for computing subscription billing periods:
+ * - "annual" -> exactly 1 calendar year (12 UTC calendar months)
+ * - "monthly" / "custom" -> 1 calendar month (or explicit customDays if given)
+ */
+export function calculateSubscriptionPeriod(
+  startDate: number | string | Date,
+  billingInterval: BillingInterval,
+  customDays?: number
+): {
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  currentPeriodStartIso: string;
+  currentPeriodEndIso: string;
+} {
+  const startMs =
+    typeof startDate === "number"
+      ? startDate
+      : startDate instanceof Date
+      ? startDate.getTime()
+      : Date.parse(startDate);
+  const safeStart = new Date(Number.isFinite(startMs) ? startMs : Date.now());
+  const end =
+    billingInterval === "annual"
+      ? addUtcCalendarMonths(safeStart, 12)
+      : billingInterval === "custom" &&
+        typeof customDays === "number" &&
+        Number.isFinite(customDays) &&
+        customDays > 0
+      ? new Date(safeStart.getTime() + Math.trunc(customDays) * 86_400_000)
+      : addUtcCalendarMonths(safeStart, 1);
+
+  return {
+    currentPeriodStart: safeStart,
+    currentPeriodEnd: end,
+    currentPeriodStartIso: safeStart.toISOString(),
+    currentPeriodEndIso: end.toISOString(),
+  };
+}
+
+export function formatDaysLeftLabel(
+  remainingDays: number | null,
+  expired: boolean
+): string {
+  if (expired) return "Subscription expired";
+  if (remainingDays === null) return "Ongoing (no expiry)";
+  if (remainingDays <= 0) return "Expires today";
+  if (remainingDays === 1) return "1 day left";
+  return `${remainingDays} days left`;
+}
+
 export type EffectiveSubscriptionStatus = SubscriptionStatus;
 
 export function mapPlanFeaturesToFlags(

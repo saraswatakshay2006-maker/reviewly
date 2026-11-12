@@ -15,6 +15,7 @@ const EDGE_TARGETS = [
   "app/api/webhooks/razorpay/route.ts",
   "app/api/events/route.ts",
   "app/api/feedback/route.ts",
+  "app/api/public/review-status/route.ts",
   "app/api/qr/[slug]/route.ts",
   "app/api/reports/export/route.ts",
   "app/api/storage-status/route.ts",

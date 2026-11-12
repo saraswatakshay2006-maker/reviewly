@@ -1,6 +1,7 @@
 import { readDB, writeDB, uid } from "./db";
 import { FEATURE_CATALOG, createSeedFeaturesForPlan } from "./planSeed";
 import {
+  calculateSubscriptionPeriod,
   formatSubscriptionCountdown,
   getExpiryNotificationBanner,
   mapPlanFeaturesToFlags,
@@ -534,6 +535,41 @@ export async function canAccessPublicReviewPage(
     reason: hasPage ? undefined : "Digital review page is disabled on current plan.",
     context: ctx,
   };
+}
+
+export { calculateSubscriptionPeriod };
+
+export async function getSubscriptionStatus(
+  businessId: string,
+  nowMs: number = Date.now()
+): Promise<SubscriptionStatus | "missing"> {
+  const ctx = await getBusinessEntitlements(businessId, nowMs);
+  return ctx ? ctx.effectiveStatus : "missing";
+}
+
+export async function getSubscriptionDaysLeft(
+  businessId: string,
+  nowMs: number = Date.now()
+): Promise<number> {
+  const ctx = await getBusinessEntitlements(businessId, nowMs);
+  if (!ctx || ctx.expired || !ctx.isUsable) return 0;
+  return ctx.remainingDays ?? 0;
+}
+
+export async function isBusinessSubscriptionExpired(
+  businessId: string,
+  nowMs: number = Date.now()
+): Promise<boolean> {
+  const ctx = await getBusinessEntitlements(businessId, nowMs);
+  if (!ctx) return true;
+  return ctx.expired || !ctx.isUsable;
+}
+
+export async function getBusinessPlanEntitlements(
+  businessId: string,
+  nowMs: number = Date.now()
+): Promise<ResolvedEntitlementContext | null> {
+  return getBusinessEntitlements(businessId, nowMs);
 }
 
 export function getPlanFeatureDisplayItems(ctx: ResolvedEntitlementContext) {

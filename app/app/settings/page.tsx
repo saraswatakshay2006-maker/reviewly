@@ -161,6 +161,8 @@ export default async function SettingsPage({
           supportTier={ctx.supportTier}
           billingInterval={ctx.subscription.billingInterval}
           paymentStatus={ctx.subscription.paymentStatus}
+          startAt={ctx.subscription.startAt}
+          currentPeriodStart={ctx.subscription.currentPeriodStart}
           planHighlights={ctx.plan.highlights}
           featureItems={getPlanFeatureDisplayItems(ctx)}
           gracePeriodDays={ctx.settings.gracePeriodDays}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import BrandMark from "./BrandMark";
 import CopyButton from "./CopyButton";
 import {
@@ -62,14 +62,31 @@ export default function DashboardShell({
   children,
 }: DashboardShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [nowMs, setNowMs] = useState<number | null>(null);
 
   useEffect(() => {
     setNowMs(Date.now());
     const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
-    return () => window.clearInterval(id);
-  }, [subscription?.renewalDate, subscription?.status]);
+    let lastRefresh = 0;
+    const onFocusOrVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      setNowMs(Date.now());
+      const now = Date.now();
+      if (now - lastRefresh >= 5_000) {
+        lastRefresh = now;
+        router.refresh();
+      }
+    };
+    window.addEventListener("focus", onFocusOrVisible);
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocusOrVisible);
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
+    };
+  }, [subscription?.renewalDate, subscription?.status, router]);
 
   const health = subscription
     ? getSubscriptionHealth(

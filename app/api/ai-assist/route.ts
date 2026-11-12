@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { getEnv } from "@/lib/cloudflare";
-import { getOrganizationEntitlements } from "@/lib/entitlements";
+import {
+  canAccessPublicReviewPage,
+  getOrganizationEntitlements,
+} from "@/lib/entitlements";
+import { getSessionById } from "@/lib/repo";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
 import {
   extractOpeningKey,
@@ -12,6 +16,8 @@ import {
 
 const bodySchema = z.object({
   mode: z.enum(["generate", "polish", "reply_draft"]).optional(),
+  businessId: z.string().max(80).optional(),
+  sessionId: z.string().max(80).optional(),
   text: z.string().max(2000).optional(),
   businessName: z.string().min(1).max(120).optional(),
   category: z.string().max(80).optional(),
@@ -266,6 +272,24 @@ export async function POST(req: NextRequest) {
 
   const d = parsed.data;
   const effectiveMode = d.mode ?? (d.text?.trim() ? "polish" : "generate");
+
+  if (effectiveMode !== "reply_draft" && (d.businessId || d.sessionId)) {
+    const session = d.sessionId ? await getSessionById(d.sessionId) : null;
+    const targetBusinessId = d.businessId || session?.businessId || null;
+    if (!targetBusinessId) {
+      return NextResponse.json(
+        { error: "Review page temporarily unavailable" },
+        { status: 403, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    const access = await canAccessPublicReviewPage(targetBusinessId);
+    if (!access.allowed) {
+      return NextResponse.json(
+        { error: access.reason || "Review page temporarily unavailable" },
+        { status: 403, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+  }
 
   if (effectiveMode === "reply_draft") {
     const user = await getCurrentUser();

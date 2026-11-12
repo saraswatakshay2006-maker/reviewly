@@ -27,6 +27,7 @@ function emptyDB(): DB {
 const g = globalThis as unknown as {
   __reviewlyCache?: DB | null;
   __reviewlyFileMtime?: number | null;
+  __reviewlyFileSize?: number | null;
   __reviewlyWriteQueue?: Promise<void>;
   __reviewlyD1Ready?: boolean;
 };
@@ -36,7 +37,7 @@ interface NodeFsPromises {
   mkdir(path: string, opts: { recursive: boolean }): Promise<void>;
   writeFile(path: string, data: string, encoding: "utf8"): Promise<void>;
   rename(oldPath: string, newPath: string): Promise<void>;
-  stat(path: string): Promise<{ mtimeMs: number }>;
+  stat(path: string): Promise<{ mtimeMs: number; size?: number }>;
 }
 
 interface NodePath {
@@ -150,12 +151,18 @@ async function load(): Promise<DB> {
     const dbPath = node.path.join(process.cwd(), "data", "db.json");
     try {
       const st = await node.fs.stat(dbPath);
-      if (g.__reviewlyCache && g.__reviewlyFileMtime === st.mtimeMs) {
+      const size = typeof st.size === "number" ? st.size : null;
+      if (
+        g.__reviewlyCache &&
+        g.__reviewlyFileMtime === st.mtimeMs &&
+        g.__reviewlyFileSize === size
+      ) {
         return migrateDBInPlace(g.__reviewlyCache);
       }
       const raw = await node.fs.readFile(dbPath, "utf8");
       g.__reviewlyCache = migrateDBInPlace(JSON.parse(raw) as DB);
       g.__reviewlyFileMtime = st.mtimeMs;
+      g.__reviewlyFileSize = size;
       return g.__reviewlyCache;
     } catch {
       g.__reviewlyCache = emptyDB();
@@ -185,8 +192,10 @@ async function persist(db: DB): Promise<void> {
     try {
       const st = await node.fs.stat(dbPath);
       g.__reviewlyFileMtime = st.mtimeMs;
+      g.__reviewlyFileSize = typeof st.size === "number" ? st.size : null;
     } catch {
       g.__reviewlyFileMtime = null;
+      g.__reviewlyFileSize = null;
     }
   }
 }

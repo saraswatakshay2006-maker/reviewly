@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRightIcon, CheckIcon, SearchIcon } from "./Icons";
 import { FEATURE_CATALOG } from "@/lib/planSeed";
-import type { PlanDefinition } from "@/lib/subscriptions";
+import {
+  calculateSubscriptionPeriod,
+  type PlanDefinition,
+} from "@/lib/subscriptions";
 import type {
   BillingInterval,
   CouponRecord,
@@ -1289,13 +1292,20 @@ function SubscriptionActionPanel({
                   const next = e.target.value;
                   setPlanId(next);
                   const found = plans.find((p) => p.id === next);
-                  if (found) setAmountInr(found.monthlyPriceInr);
+                  if (found) {
+                    const annualPrice = found.annualPriceInr ?? 0;
+                    setAmountInr(
+                      billingInterval === "annual" && annualPrice > 0
+                        ? annualPrice
+                        : found.monthlyPriceInr
+                    );
+                  }
                 }}
                 className={cls}
               >
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} (₹{p.monthlyPriceInr})
+                    {p.name} (₹{p.monthlyPriceInr}/mo{p.annualPriceInr && p.annualPriceInr > 0 ? ` · ₹${p.annualPriceInr}/yr` : ""})
                   </option>
                 ))}
               </select>
@@ -1306,18 +1316,45 @@ function SubscriptionActionPanel({
               </label>
               <select
                 value={billingInterval}
-                onChange={(e) =>
-                  setBillingInterval(e.target.value as BillingInterval)
-                }
+                onChange={(e) => {
+                  const nextInterval = e.target.value as BillingInterval;
+                  setBillingInterval(nextInterval);
+                  const found = plans.find((p) => p.id === planId);
+                  if (found) {
+                    const annualPrice = found.annualPriceInr ?? 0;
+                    setAmountInr(
+                      nextInterval === "annual" && annualPrice > 0
+                        ? annualPrice
+                        : found.monthlyPriceInr
+                    );
+                  }
+                }}
                 className={cls}
               >
-                <option value="monthly">Monthly</option>
-                <option value="annual">Annual</option>
+                <option value="monthly">Monthly (1 Month)</option>
+                <option value="annual">Annual (1 Year)</option>
                 <option value="custom">Custom</option>
               </select>
             </div>
           </div>
         )}
+
+        {(action === "activate_manual" || action === "change_plan") &&
+          billingInterval !== "custom" && (
+            <div className="rounded-control border border-cobalt-200 bg-cobalt-50/60 px-3 py-2 text-[11px] text-ink-secondary">
+              Updated expiry preview:{" "}
+              <strong className="text-ink">
+                {new Date(
+                  calculateSubscriptionPeriod(Date.now(), billingInterval).currentPeriodEndIso
+                ).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </strong>{" "}
+              ({billingInterval === "annual" ? "1 year cycle" : "1 month cycle"})
+            </div>
+          )}
 
         {(action === "activate_manual" || action === "assign_enterprise") && (
           <div>
@@ -1335,32 +1372,57 @@ function SubscriptionActionPanel({
         )}
 
         {needsDays && (
-          <div className="grid grid-cols-2 gap-2.5 items-end">
-            <div>
-              <label className="block text-[11px] font-medium text-ink-muted mb-1">
-                Days to Add
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={3650}
-                value={extendDays}
-                onChange={(e) => setExtendDays(Number(e.target.value))}
-                className={`${cls} tabular-nums`}
-              />
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2.5 items-end">
+              <div>
+                <label className="block text-[11px] font-medium text-ink-muted mb-1">
+                  Days to Add
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={extendDays}
+                  onChange={(e) => setExtendDays(Number(e.target.value))}
+                  className={`${cls} tabular-nums`}
+                />
+              </div>
+              <div className="flex gap-1.5 pb-1">
+                {[7, 14, 30, 365].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setExtendDays(d)}
+                    className="rounded border border-black/[0.12] px-2 py-1 text-[11px] hover:bg-canvas"
+                  >
+                    +{d}d
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-1.5 pb-1">
-              {[7, 14, 30, 365].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setExtendDays(d)}
-                  className="rounded border border-black/[0.12] px-2 py-1 text-[11px] hover:bg-canvas"
-                >
-                  +{d}d
-                </button>
-              ))}
-            </div>
+            {Number.isFinite(extendDays) && extendDays > 0 && (
+              <div className="rounded-control border border-black/[0.08] bg-canvas px-3 py-1.5 text-[11px] text-ink-secondary">
+                Updated expiry preview:{" "}
+                <strong className="text-ink">
+                  {(() => {
+                    const currentEndMs = sub.currentPeriodEnd
+                      ? Date.parse(sub.currentPeriodEnd)
+                      : NaN;
+                    const baseMs =
+                      action === "extend" && Number.isFinite(currentEndMs)
+                        ? Math.max(currentEndMs, Date.now())
+                        : Date.now();
+                    return new Date(
+                      baseMs + Math.round(extendDays) * 86_400_000
+                    ).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    });
+                  })()}
+                </strong>
+              </div>
+            )}
           </div>
         )}
 
