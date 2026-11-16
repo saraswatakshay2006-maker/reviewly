@@ -44,7 +44,7 @@ export default function StandeeDesignerClient({
   // Live mutable design state
   const [design, setDesign] = useState<StandeeDesign>(initialDesign);
   const [viewMode, setViewMode] = useState<"flat" | "3d" | "compare">("flat");
-  const [activeTab, setActiveTab] = useState<"theme" | "colors" | "content" | "print">("theme");
+  const [activeTab, setActiveTab] = useState<"theme" | "logo" | "colors" | "content" | "print">("theme");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [isNfcModalOpen, setIsNfcModalOpen] = useState(false);
   const [isSaving, startSave] = useTransition();
@@ -53,6 +53,13 @@ export default function StandeeDesignerClient({
   const [isExporting, setIsExporting] = useState<"pdf" | "png" | "svg" | null>(null);
   const [emblemCategory, setEmblemCategory] = useState<string>("All");
   const [emblemSearch, setEmblemSearch] = useState<string>("");
+
+  const activeEmblemId =
+    design.emblemType ||
+    inferEmblemType(design.tagline, design.businessName);
+  const currentEmblem =
+    ALL_LOGO_EMBLEMS.find((e) => e.id === activeEmblemId) ||
+    ALL_LOGO_EMBLEMS[0];
 
   // Hidden/rendered SVG ref for canvas rendering and PDF export
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -338,11 +345,11 @@ export default function StandeeDesignerClient({
         {/* ================================================================= */}
         <div className="lg:col-span-5 space-y-5">
           {/* Controls Navigation Tabs */}
-          <div className="flex rounded-xl bg-surface-subtle p-1 border border-black/[0.08]">
+          <div className="flex rounded-xl bg-surface-subtle p-1 border border-black/[0.08] overflow-x-auto gap-0.5">
             <button
               type="button"
               onClick={() => setActiveTab("theme")}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex-1 min-w-[65px] py-2 px-1 text-xs font-semibold rounded-lg transition-all ${
                 activeTab === "theme"
                   ? "bg-white text-ink shadow-xs"
                   : "text-ink-secondary hover:text-ink"
@@ -352,42 +359,78 @@ export default function StandeeDesignerClient({
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab("logo")}
+              className={`flex-1 min-w-[95px] py-2 px-1 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
+                activeTab === "logo"
+                  ? "bg-white text-ink shadow-xs"
+                  : "text-ink-secondary hover:text-ink"
+              }`}
+            >
+              <span>{design.logoUrl ? "🖼️" : currentEmblem?.icon || "🏷️"}</span>
+              <span>Logo &amp; Emblem</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab("colors")}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex-1 min-w-[65px] py-2 px-1 text-xs font-semibold rounded-lg transition-all ${
                 activeTab === "colors"
                   ? "bg-white text-ink shadow-xs"
                   : "text-ink-secondary hover:text-ink"
               }`}
             >
-              Custom Colors
+              Colors
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("content")}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex-1 min-w-[65px] py-2 px-1 text-xs font-semibold rounded-lg transition-all ${
                 activeTab === "content"
                   ? "bg-white text-ink shadow-xs"
                   : "text-ink-secondary hover:text-ink"
               }`}
             >
-              Content
+              Text
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("print")}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex-1 min-w-[65px] py-2 px-1 text-xs font-semibold rounded-lg transition-all ${
                 activeTab === "print"
                   ? "bg-white text-ink shadow-xs"
                   : "text-ink-secondary hover:text-ink"
               }`}
             >
-              Print Setup
+              Print
             </button>
           </div>
 
           {/* TAB 1: PRESET THEMES (7 Presets + Custom) */}
           {activeTab === "theme" && (
             <div className="rounded-card bg-white border border-black/[0.09] p-5 space-y-4 shadow-sm">
+              {/* Active Brand Identity Bar */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-black/[0.08] bg-surface-subtle">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-white border border-black/10 flex items-center justify-center text-lg shrink-0 shadow-2xs">
+                    {design.logoUrl ? "🖼️" : currentEmblem?.icon || "👑"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-ink truncate">
+                      {design.logoUrl ? "Custom Logo Active" : (currentEmblem?.label || "Brand Vector Emblem")}
+                    </p>
+                    <p className="text-[11px] text-ink-muted truncate">
+                      Renders in header wave &amp; QR code center
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("logo")}
+                  className="text-xs font-semibold text-cobalt-600 hover:text-cobalt-700 bg-white px-2.5 py-1.5 rounded-lg border border-black/10 shadow-xs shrink-0"
+                >
+                  Change Logo &rarr;
+                </button>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-display text-sm font-bold text-ink">
@@ -494,7 +537,169 @@ export default function StandeeDesignerClient({
             </div>
           )}
 
-          {/* TAB 2: CUSTOM COLOR PICKERS & HEX INPUTS */}
+          {/* TAB 2: LOGO & BRAND EMBLEM */}
+          {activeTab === "logo" && (
+            <div className="rounded-card bg-white border border-black/[0.09] p-5 space-y-4 shadow-sm">
+              <div>
+                <h2 className="font-display text-sm font-bold text-ink">
+                  Business Logo &amp; Brand Emblem
+                </h2>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Appears in the prominent top wave banner and the high-contrast QR code center badge.
+                </p>
+              </div>
+
+              {/* Active Selection Banner */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-black/[0.08] bg-surface-subtle">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-white border border-black/10 flex items-center justify-center text-2xl shrink-0 shadow-2xs">
+                    {design.logoUrl ? "🖼️" : currentEmblem?.icon || "👑"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-ink truncate">
+                      {design.logoUrl ? "Custom Image Logo Active" : `${currentEmblem?.label || "Brand Vector Emblem"} Active`}
+                    </p>
+                    <p className="text-[11px] text-ink-muted truncate">
+                      {design.logoUrl ? "Uploaded brand image file" : (currentEmblem?.desc || "High-definition vector emblem")}
+                    </p>
+                  </div>
+                </div>
+                {design.logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setDesign((p) => ({ ...p, logoUrl: "" }))}
+                    className="text-xs font-semibold text-red-600 hover:text-red-700 bg-white px-2.5 py-1.5 rounded-lg border border-red-200 shadow-2xs shrink-0"
+                  >
+                    Remove Logo
+                  </button>
+                )}
+              </div>
+
+              {/* Upload Custom Logo Section */}
+              <div className="p-3.5 rounded-xl border border-black/[0.08] bg-canvas space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-ink">
+                    Upload Custom Image Logo
+                  </label>
+                  <span className="text-[10px] text-ink-muted">PNG, JPG, or SVG (max 2MB)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="text-xs text-ink-secondary file:mr-2.5 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-white file:text-ink file:shadow-2xs hover:file:bg-surface-subtle"
+                  />
+                  {design.logoUrl && (
+                    <span className="text-[11px] text-emerald-600 font-bold shrink-0">
+                      ✓ Image Loaded
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Or Choose From 28 Vector Emblems */}
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-ink">
+                    Or Select Vector Brand Emblem
+                  </label>
+                  <span className="text-[10px] text-ink-muted">
+                    {ALL_LOGO_EMBLEMS.length} professional emblems
+                  </span>
+                </div>
+
+                {/* Category Filter Pills */}
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    "All",
+                    "Universal Monograms",
+                    "Wellness & Health",
+                    "Food & Hospitality",
+                    "Services & Retail",
+                  ].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setEmblemCategory(cat)}
+                      className={`text-[10px] px-2.5 py-1 rounded-full transition-colors ${
+                        emblemCategory === cat
+                          ? "bg-cobalt-600 text-white font-semibold shadow-2xs"
+                          : "bg-surface-subtle text-ink-secondary hover:bg-black/5"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search Input */}
+                <div>
+                  <input
+                    type="text"
+                    value={emblemSearch}
+                    onChange={(e) => setEmblemSearch(e.target.value)}
+                    placeholder="Search industry emblems (e.g. cafe, dental, legal, crest, gym)..."
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-black/15 bg-white text-ink placeholder:text-ink-muted focus:outline-cobalt-600"
+                  />
+                </div>
+
+                {/* Emblems Grid */}
+                <div className="grid grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+                  {ALL_LOGO_EMBLEMS.filter((e) => {
+                    const matchesCat =
+                      emblemCategory === "All" || e.category === emblemCategory;
+                    const q = emblemSearch.trim().toLowerCase();
+                    const matchesSearch =
+                      !q ||
+                      e.label.toLowerCase().includes(q) ||
+                      e.desc.toLowerCase().includes(q) ||
+                      e.id.toLowerCase().includes(q);
+                    return matchesCat && matchesSearch;
+                  }).map((emblem) => {
+                    const isSelected =
+                      activeEmblemId === emblem.id && !design.logoUrl;
+
+                    return (
+                      <button
+                        key={emblem.id}
+                        type="button"
+                        onClick={() =>
+                          setDesign((p) => ({
+                            ...p,
+                            emblemType: emblem.id,
+                            logoUrl: "",
+                          }))
+                        }
+                        className={`text-left p-2.5 rounded-xl border transition-all ${
+                          isSelected
+                            ? "border-cobalt-600 bg-cobalt-50/80 text-cobalt-950 ring-2 ring-cobalt-600/25 font-semibold shadow-xs"
+                            : "border-black/[0.08] bg-white hover:bg-surface-subtle text-ink"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xl shrink-0">{emblem.icon}</span>
+                            <span className="text-xs truncate">{emblem.label}</span>
+                          </div>
+                          {isSelected && (
+                            <span className="h-4 w-4 rounded-full bg-cobalt-600 text-white flex items-center justify-center text-[10px] shrink-0">
+                              ✓
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-ink-muted mt-1 truncate">
+                          {emblem.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: CUSTOM COLOR PICKERS & HEX INPUTS */}
           {activeTab === "colors" && (
             <div className="rounded-card bg-white border border-black/[0.09] p-5 space-y-4 shadow-sm">
               <div>
@@ -680,131 +885,28 @@ export default function StandeeDesignerClient({
                   />
                 </div>
 
-                {/* Logo Upload or URL */}
-                <div>
-                  <label className="block text-xs font-semibold text-ink mb-1">
-                    Upload Custom Business Logo
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="text-xs text-ink-secondary file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-surface-subtle file:text-ink hover:file:bg-black/5"
-                    />
-                    {design.logoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setDesign((p) => ({ ...p, logoUrl: "" }))}
-                        className="text-[11px] text-red-600 hover:underline shrink-0 font-medium"
-                      >
-                        Remove Logo
-                      </button>
-                    )}
+                {/* Brand Logo & Emblem Shortcut */}
+                <div className="flex items-center justify-between p-3 rounded-xl border border-black/[0.08] bg-canvas">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-surface-subtle border border-black/10 flex items-center justify-center text-lg shrink-0">
+                      {design.logoUrl ? "🖼️" : currentEmblem?.icon || "👑"}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-ink truncate">
+                        {design.logoUrl ? "Custom Logo Active" : (currentEmblem?.label || "Brand Vector Emblem")}
+                      </p>
+                      <p className="text-[10px] text-ink-muted truncate">
+                        Top wave header &amp; QR center badge
+                      </p>
+                    </div>
                   </div>
-                  {design.logoUrl && (
-                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
-                      ✓ Custom logo active. Will appear in top wave and center of QR.
-                    </p>
-                  )}
-                </div>
-
-                {/* Vector Brand Emblem Selector */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-ink">
-                      Business Logo & Vector Emblem
-                    </label>
-                    <span className="text-[10px] text-ink-muted">
-                      {design.logoUrl ? "Custom Upload Active" : "Vector Emblem Active"}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-ink-muted mb-2.5">
-                    Renders in high definition inside the top wave banner and the QR code center badge:
-                  </p>
-
-                  {/* Category Filter Pills */}
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {[
-                      "All",
-                      "Universal Monograms",
-                      "Wellness & Health",
-                      "Food & Hospitality",
-                      "Services & Retail",
-                    ].map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setEmblemCategory(cat)}
-                        className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
-                          emblemCategory === cat
-                            ? "bg-cobalt-600 text-white font-medium"
-                            : "bg-surface-subtle text-ink-secondary hover:bg-black/5"
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Search Input */}
-                  <div className="mb-2">
-                    <input
-                      type="text"
-                      value={emblemSearch}
-                      onChange={(e) => setEmblemSearch(e.target.value)}
-                      placeholder="Search industry emblems (e.g. dental, legal, coffee, crest)..."
-                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-black/15 bg-white text-ink placeholder:text-ink-muted focus:outline-cobalt-600"
-                    />
-                  </div>
-
-                  {/* Emblems Grid */}
-                  <div className="grid grid-cols-2 gap-1.5 max-h-[220px] overflow-y-auto pr-1">
-                    {ALL_LOGO_EMBLEMS.filter((e) => {
-                      const matchesCat =
-                        emblemCategory === "All" || e.category === emblemCategory;
-                      const q = emblemSearch.trim().toLowerCase();
-                      const matchesSearch =
-                        !q ||
-                        e.label.toLowerCase().includes(q) ||
-                        e.desc.toLowerCase().includes(q) ||
-                        e.id.toLowerCase().includes(q);
-                      return matchesCat && matchesSearch;
-                    }).map((emblem) => {
-                      const activeEmblemId =
-                        design.emblemType ||
-                        inferEmblemType(design.tagline, design.businessName);
-                      const isSelected =
-                        activeEmblemId === emblem.id && !design.logoUrl;
-
-                      return (
-                        <button
-                          key={emblem.id}
-                          type="button"
-                          onClick={() =>
-                            setDesign((p) => ({
-                              ...p,
-                              emblemType: emblem.id,
-                              logoUrl: "",
-                            }))
-                          }
-                          className={`text-left p-2 rounded-lg border transition-all ${
-                            isSelected
-                              ? "border-cobalt-600 bg-cobalt-50/70 text-cobalt-950 ring-2 ring-cobalt-600/20 font-semibold"
-                              : "border-black/10 bg-white hover:bg-surface-subtle text-ink"
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <span className="text-base">{emblem.icon}</span>
-                            <span className="truncate">{emblem.label}</span>
-                          </div>
-                          <p className="text-[10px] text-ink-muted mt-0.5 truncate">
-                            {emblem.desc}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("logo")}
+                    className="text-xs font-semibold text-cobalt-600 hover:text-cobalt-700 bg-white px-2.5 py-1.5 rounded-lg border border-black/10 shadow-xs shrink-0"
+                  >
+                    Edit Logo &rarr;
+                  </button>
                 </div>
 
                 {/* Pre-Headline */}

@@ -17,6 +17,7 @@ import {
 import LocationSwitcher from "@/components/LocationSwitcher";
 import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
 import StandeeDesignerClient from "@/components/StandeeDesignerClient";
+import { inferEmblemType } from "@/lib/logoEmblems";
 import type { StandeeDesign } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -101,41 +102,52 @@ export default async function StandeePage({
   ).replace(/\/$/, "");
 
   // Safe non-null design fallback
-  const initialDesign: StandeeDesign = standeeDesign || {
-    id: `standee_${business.id}`,
-    businessId: business.id,
-    organizationId: business.organizationId,
-    themeId: themes[0]?.id || "forest-green-gold",
-    colors: themes[0]?.colors || {
-      primary: "#063F32",
-      secondary: "#12805A",
-      accent: "#D9A441",
-      background: "#FFFFFF",
-      text: "#17211D",
-    },
-    businessName: business.name,
-    tagline:
-      business.description ||
-      `${business.category ? business.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
-    logoUrl: business.logoUrl || "",
-    emblemType: "gym",
-    headline: "Loved Our Service?",
-    mainHeadline: "Review Us",
-    supportingText:
-      "Your feedback helps us grow and serve you better!",
-    footerText: "Thank You!",
-    qrScanLabel: "SCAN",
-    qrScanInstruction: "Scan the QR code with your phone",
-    nfcTapLabel: "TAP",
-    nfcTapInstruction: "Tap your NFC-enabled phone here",
-    benefit1: "Share Your Experience",
-    benefit2: "Help Us Improve",
-    benefit3: "Support Our Growth",
-    bleedEnabled: false,
-    cropMarks: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const initialDesign: StandeeDesign = standeeDesign
+    ? {
+        ...standeeDesign,
+        emblemType:
+          standeeDesign.emblemType ||
+          inferEmblemType(business.category, business.name, business.description),
+      }
+    : {
+        id: `standee_${business.id}`,
+        businessId: business.id,
+        organizationId: business.organizationId,
+        themeId: themes[0]?.id || "forest-green-gold",
+        colors: themes[0]?.colors || {
+          primary: "#063F32",
+          secondary: "#12805A",
+          accent: "#D9A441",
+          background: "#FFFFFF",
+          text: "#17211D",
+        },
+        businessName: business.name,
+        tagline:
+          business.description ||
+          `${business.category ? business.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
+        logoUrl: business.logoUrl || "",
+        emblemType: inferEmblemType(
+          business.category,
+          business.name,
+          business.description
+        ),
+        headline: "Loved Our Service?",
+        mainHeadline: "Review Us",
+        supportingText:
+          "Your feedback helps us grow and serve you better!",
+        footerText: "Thank You!",
+        qrScanLabel: "SCAN",
+        qrScanInstruction: "Scan the QR code with your phone",
+        nfcTapLabel: "TAP",
+        nfcTapInstruction: "Tap your NFC-enabled phone here",
+        benefit1: "Share Your Experience",
+        benefit2: "Help Us Improve",
+        benefit3: "Support Our Growth",
+        bleedEnabled: false,
+        cropMarks: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
   return (
     <div className="space-y-6">

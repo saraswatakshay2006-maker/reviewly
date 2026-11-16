@@ -14,6 +14,7 @@ import {
   syncExpiredSubscriptions,
 } from "./entitlements";
 import { DEFAULT_PLAN_RECORDS, DEFAULT_STANDEE_THEMES } from "./planSeed";
+import { inferEmblemType } from "./logoEmblems";
 import type {
   Business,
   CustomerSession,
@@ -1313,7 +1314,7 @@ export const getStandeeDesignForBusiness = async (
         biz.description?.trim() ||
         `${biz.category ? biz.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
       logoUrl: biz.logoUrl || "",
-      emblemType: "gym",
+      emblemType: inferEmblemType(biz.category, biz.name, biz.description),
       headline: "Loved Our Service?",
       mainHeadline: "Review Us",
       supportingText:
@@ -1383,6 +1384,9 @@ export const saveStandeeDesign = async (
           biz.description ||
           `${biz.category ? biz.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
         logoUrl: data.logoUrl !== undefined ? data.logoUrl : biz.logoUrl || "",
+        emblemType:
+          data.emblemType ||
+          inferEmblemType(biz.category, biz.name, biz.description),
         headline: data.headline || "LOVE OUR SERVICE?",
         mainHeadline: data.mainHeadline || "SHARE YOUR EXPERIENCE",
         supportingText:

@@ -6,6 +6,7 @@ import {
   getStandeeDesignForBusiness,
   saveStandeeDesign,
 } from "@/lib/repo";
+import { inferEmblemType } from "@/components/BusinessLogoEmblems";
 
 const standeeSaveSchema = z.object({
   themeId: z.string().min(1).max(60),
@@ -19,7 +20,7 @@ const standeeSaveSchema = z.object({
   businessName: z.string().min(1).max(120),
   tagline: z.string().max(200).default(""),
   logoUrl: z.string().max(10_000_000).default(""),
-  emblemType: z.string().max(40).optional().default("gym"),
+  emblemType: z.string().max(40).optional(),
   headline: z.string().max(120).default("Loved Our Service?"),
   mainHeadline: z.string().max(120).default("Review Us"),
   supportingText: z.string().max(300).default("Your honest feedback helps us improve and serve you better."),
@@ -94,7 +95,13 @@ export async function POST(
   }
 
   try {
-    const updated = await saveStandeeDesign(businessId, parsed.data);
+    const emblemType =
+      parsed.data.emblemType ||
+      inferEmblemType(business.category, business.name, business.description);
+    const updated = await saveStandeeDesign(businessId, {
+      ...parsed.data,
+      emblemType,
+    });
     return NextResponse.json(
       { ok: true, design: updated },
       { headers: { "Cache-Control": "no-store" } }
