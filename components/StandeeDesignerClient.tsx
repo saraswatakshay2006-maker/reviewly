@@ -1140,7 +1140,7 @@ export default function StandeeDesignerClient({
                   </p>
                   <p>• Dashed vertical cut line down the center (105 mm)</p>
                   <p>• Dashed horizontal cut line across the page (148 mm)</p>
-                  <p>• Complete printing and folding assembly guide on lower half</p>
+                  <p>• Bottom half is 100% clean blank paper — reuse it in your printer or for notes</p>
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">
@@ -1400,34 +1400,16 @@ export default function StandeeDesignerClient({
                   <span className="shrink-0">✂</span>
                 </div>
 
-                {/* Bottom Half: Professional Instructions & Folding Guide */}
-                <div className="flex-1 rounded-md border border-slate-200 bg-slate-50 p-2.5 sm:p-3 flex flex-col justify-between text-left">
-                  <div>
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                      <span className="text-[11px] font-bold text-slate-900">
-                        2x A6 Tabletop Review Standees — Ready to Print &amp; Cut
-                      </span>
-                      <span className="text-[9px] font-semibold text-cobalt-700 bg-cobalt-100 px-1.5 py-0.2 rounded border border-cobalt-200">
-                        600 DPI Press Master
-                      </span>
-                    </div>
-
-                    <div className="mt-2 space-y-1 text-[10px] text-slate-700">
-                      <p>
-                        <strong className="text-slate-900">1. Print:</strong> Print at 100% scale (no scaling) on 300+ GSM cardstock or photo paper.
-                      </p>
-                      <p>
-                        <strong className="text-slate-900">2. Trim:</strong> Cut along the 148 mm bottom dashed line, then down the 105 mm center line.
-                      </p>
-                      <p>
-                        <strong className="text-slate-900">3. Display &amp; Tap:</strong> Slide both cards into acrylic stands and program the NFC tags to your review URL.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[9px] text-slate-500">
-                    <span>Business: {design.businessName}</span>
-                    <span>Reviewly SaaS Master Sheet</span>
+                {/* Bottom Half: 100% Clean Blank Paper (Reusable - Zero Ink Printed) */}
+                <div className="flex-1 rounded-md border-2 border-dashed border-slate-200 bg-white p-4 flex flex-col items-center justify-center text-center select-none">
+                  <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                    <span className="text-xl">📄</span>
+                    <span className="text-[11px] font-bold text-slate-600">
+                      Clean Blank Paper (210 × 149 mm · A5)
+                    </span>
+                    <p className="text-[10px] text-slate-400 max-w-[320px] leading-tight">
+                      No ink is printed here. Once trimmed along the cut line, reload this pristine blank half back into your printer or reuse it for notes.
+                    </p>
                   </div>
                 </div>
               </div>
