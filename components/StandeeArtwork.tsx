@@ -180,26 +180,26 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
         <g id="top-wave-header">
           {/* Layer 1: Lime/Accent accent wave curve */}
           <path
-            d="M -10 -10 L 1250 -10 L 1250 250 C 980 340, 720 180, -10 270 Z"
+            d="M -10 -10 L 1250 -10 L 1250 145 C 960 215, 680 200, 320 195 C 160 192, 50 165, -10 155 Z"
             fill={limeAccent}
             opacity="0.95"
           />
 
           {/* Layer 2: Main Dark Forest Green swooping wave */}
           <path
-            d="M -10 -10 L 1250 -10 L 1250 220 C 980 305, 720 155, -10 240 Z"
+            d="M -10 -10 L 1250 -10 L 1250 125 C 960 195, 680 180, 320 175 C 160 172, 50 145, -10 135 Z"
             fill="url(#top-wave-grad)"
           />
 
           {/* Subtle wave highlight curve */}
           <path
-            d="M -10 -10 L 600 -10 C 450 120, 200 200, -10 220 Z"
+            d="M -10 -10 L 550 -10 C 400 90, 180 150, -10 140 Z"
             fill="#FFFFFF"
             opacity="0.06"
           />
 
           {/* Logo / Monogram Icon in Top Wave (Wide, Prominent, Exactly Like Reference) */}
-          <g id="top-logo-group" transform="translate(620, 84)">
+          <g id="top-logo-group" transform="translate(620, 62)">
             <BusinessLogoEmblems
               type={design.emblemType}
               category={design.tagline || ""}
@@ -207,14 +207,14 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               logoUrl={design.logoUrl}
               primaryColor={primary}
               accentColor={limeAccent}
-              size={150}
+              size={112}
             />
           </g>
 
           {/* Business Name inside Top Wave (No Tagline on A6 Print as Requested) */}
           <text
             x="620"
-            y="166"
+            y="142"
             textAnchor="middle"
             fill="#FFFFFF"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -230,7 +230,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
         {/* =================================================================== */}
         {/* MIDDLE SECTION — REVIEW INVITATION WITH RADIANT SPARKS & STARS      */}
         {/* =================================================================== */}
-        <g id="review-invitation-section" transform="translate(620, 268)">
+        <g id="review-invitation-section" transform="translate(620, 275)">
           {/* Sub-headline: Loved Our Service? */}
           <text
             x="0"
@@ -247,7 +247,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           </text>
 
           {/* Main Huge Headline: Review Us with Radiant Bursts */}
-          <g transform="translate(0, 68)">
+          <g transform="translate(0, 64)">
             {/* Left Golden Radiant Sparks */}
             <g transform="translate(-235, -20)" stroke="#F5A623" strokeWidth="4.5" strokeLinecap="round">
               {/* Top ray */}
@@ -285,7 +285,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           </g>
 
           {/* 5 Solid Golden Decorative Stars */}
-          <g id="decorative-five-stars" transform="translate(0, 142)">
+          <g id="decorative-five-stars" transform="translate(0, 128)">
             {[-2, -1, 0, 1, 2].map((offset) => {
               const cx = offset * 54;
               const cy = 0;
@@ -313,7 +313,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           {/* Supporting Text */}
           <text
             x="0"
-            y="192"
+            y="172"
             textAnchor="middle"
             fill="#4A5568"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -331,7 +331,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
         {/* =================================================================== */}
 
         {/* LEFT PANEL: QR SCAN */}
-        <g id="panel-qr-scan" transform="translate(42, 475)">
+        <g id="panel-qr-scan" transform="translate(42, 485)">
           {/* Pale Mint Container Box */}
           <rect
             x="0"
@@ -505,7 +505,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
         </g>
 
         {/* RIGHT PANEL: NFC TAP */}
-        <g id="panel-nfc-tap" transform="translate(658, 475)">
+        <g id="panel-nfc-tap" transform="translate(658, 485)">
           {/* Pale Mint Container Box */}
           <rect
             x="0"
