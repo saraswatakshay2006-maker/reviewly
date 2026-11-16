@@ -12,6 +12,8 @@ import {
   exportStandeePdf,
   exportStandeePng,
   exportStandeeSvg,
+  exportTwoUpA4Pdf,
+  exportTwoUpA4Png,
 } from "@/lib/standeeExport";
 import {
   ArrowUpRightIcon,
@@ -43,14 +45,16 @@ export default function StandeeDesignerClient({
 }: StandeeDesignerClientProps) {
   // Live mutable design state
   const [design, setDesign] = useState<StandeeDesign>(initialDesign);
-  const [viewMode, setViewMode] = useState<"flat" | "3d" | "compare">("flat");
+  const [viewMode, setViewMode] = useState<"flat" | "3d" | "a4" | "compare">("flat");
   const [activeTab, setActiveTab] = useState<"theme" | "logo" | "colors" | "content" | "print">("theme");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [isNfcModalOpen, setIsNfcModalOpen] = useState(false);
   const [isSaving, startSave] = useTransition();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState<"pdf" | "png" | "svg" | null>(null);
+  const [isExporting, setIsExporting] = useState<
+    "pdf" | "png" | "svg" | "a4-pdf" | "a4-png" | null
+  >(null);
   const [emblemCategory, setEmblemCategory] = useState<string>("All");
   const [emblemSearch, setEmblemSearch] = useState<string>("");
 
@@ -225,6 +229,44 @@ export default function StandeeDesignerClient({
     }
   };
 
+  // 2-Up A4 PDF Export (2x A6 Side-by-Side at top of A4 sheet at 600 DPI Ultra-HD)
+  const handleDownloadTwoUpA4Pdf = async () => {
+    if (!svgRef.current) return;
+    setIsExporting("a4-pdf");
+    try {
+      await exportTwoUpA4Pdf(
+        svgRef.current,
+        design,
+        `${business.publicSlug}-2up-a4-standees`,
+        {
+          bleed: design.bleedEnabled,
+          cropMarks: design.cropMarks,
+        }
+      );
+    } catch (err) {
+      alert(`2-Up A4 PDF export failed: ${(err as Error).message}`);
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  // 2-Up A4 PNG Export (2x A6 Side-by-Side at top of A4 sheet at 300 DPI Ultra-HD)
+  const handleDownloadTwoUpA4Png = async () => {
+    if (!svgRef.current) return;
+    setIsExporting("a4-png");
+    try {
+      await exportTwoUpA4Png(
+        svgRef.current,
+        `${business.publicSlug}-2up-a4-standees-300dpi`,
+        { bleed: design.bleedEnabled }
+      );
+    } catch (err) {
+      alert(`2-Up A4 PNG export failed: ${(err as Error).message}`);
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Header / Bar */}
@@ -279,34 +321,71 @@ export default function StandeeDesignerClient({
 
           <div className="h-5 w-px bg-black/10 mx-1 hidden sm:block" />
 
-          {/* Download PDF Main CTA */}
+          {/* Download 2-Up A4 PDF (2x A6 Side-by-Side at top of A4) */}
+          <button
+            type="button"
+            onClick={handleDownloadTwoUpA4Pdf}
+            disabled={isExporting !== null}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-control bg-cobalt-600 hover:bg-cobalt-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+            title="Export 2x A6 standees side-by-side at the top of a single A4 sheet at 600 DPI press quality"
+          >
+            {isExporting === "a4-pdf" ? (
+              <RefreshIcon size={14} className="animate-spin" />
+            ) : (
+              <PrinterIcon size={14} />
+            )}
+            <span>{isExporting === "a4-pdf" ? "Building A4…" : "2-Up A4 PDF"}</span>
+            <span className="ml-0.5 rounded bg-white/20 px-1 py-0.2 text-[10px] font-bold">
+              2x A6
+            </span>
+          </button>
+
+          {/* Download Single A6 PDF */}
           <button
             type="button"
             onClick={handleDownloadPdf}
             disabled={isExporting !== null}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-control bg-ink hover:bg-black text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-control bg-ink hover:bg-black text-white text-xs font-semibold transition-all shadow-sm disabled:opacity-50"
+            title="Export single A6 PDF (105 × 148 mm)"
           >
             {isExporting === "pdf" ? (
               <RefreshIcon size={14} className="animate-spin" />
             ) : (
               <PrinterIcon size={14} />
             )}
-            <span>{isExporting === "pdf" ? "Generating PDF…" : "Download A6 PDF"}</span>
+            <span>{isExporting === "pdf" ? "PDF…" : "A6 PDF"}</span>
           </button>
 
-          {/* High-Res PNG Button */}
+          {/* 2-Up A4 PNG Button */}
+          <button
+            type="button"
+            onClick={handleDownloadTwoUpA4Png}
+            disabled={isExporting !== null}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-control border border-black/10 bg-white hover:bg-surface-subtle text-xs font-medium text-ink transition-colors disabled:opacity-50"
+            title="Download 2-Up A4 sheet as 300 DPI high-res PNG"
+          >
+            {isExporting === "a4-png" ? (
+              <RefreshIcon size={14} className="animate-spin" />
+            ) : (
+              <DownloadIcon size={14} />
+            )}
+            <span>2-Up A4 PNG</span>
+          </button>
+
+          {/* High-Res Single PNG Button */}
           <button
             type="button"
             onClick={handleDownloadPng}
             disabled={isExporting !== null}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-control border border-black/10 bg-white hover:bg-surface-subtle text-xs font-medium text-ink transition-colors disabled:opacity-50"
+            title="Download single A6 PNG (300 DPI)"
           >
             {isExporting === "png" ? (
               <RefreshIcon size={14} className="animate-spin" />
             ) : (
               <DownloadIcon size={14} />
             )}
-            <span>PNG</span>
+            <span>A6 PNG</span>
           </button>
 
           {/* SVG Button */}
@@ -871,9 +950,14 @@ export default function StandeeDesignerClient({
 
                 {/* Tagline */}
                 <div>
-                  <label className="block text-xs font-semibold text-ink mb-1">
-                    Business Tagline
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-ink">
+                      Business Tagline
+                    </label>
+                    <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                      Hidden on A6 Print
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={design.tagline}
@@ -883,6 +967,9 @@ export default function StandeeDesignerClient({
                     className="w-full text-xs font-medium text-ink px-3 py-2 rounded-lg border border-black/15 bg-white focus:outline-cobalt-600"
                     placeholder="e.g. FITNESS • TRAINING • WELLNESS"
                   />
+                  <p className="text-[10px] text-ink-muted mt-1">
+                    Retained for digital business records; omitted from the physical A6 print for maximum brand cleanliness and large typography.
+                  </p>
                 </div>
 
                 {/* Brand Logo & Emblem Shortcut */}
@@ -1025,6 +1112,67 @@ export default function StandeeDesignerClient({
                 </label>
               </div>
 
+              {/* 2-Up A4 Sheet Print Feature Box */}
+              <div className="p-4 rounded-xl border border-cobalt-200 bg-cobalt-50/50 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-cobalt-600 text-white shrink-0">
+                      <PrinterIcon size={16} />
+                    </span>
+                    <div>
+                      <h3 className="text-xs font-bold text-ink">
+                        2-Up A4 Sheet Print (Side-by-Side)
+                      </h3>
+                      <p className="text-[11px] text-ink-muted">
+                        Prints 2x A6 standees across the top of an A4 sheet (210 × 148 mm).
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-cobalt-700 bg-cobalt-100 px-2 py-0.5 rounded-full border border-cobalt-200 shrink-0">
+                    600 DPI Ultra-HD
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-ink-secondary space-y-1 bg-white p-2.5 rounded-lg border border-cobalt-100">
+                  <p className="font-semibold text-ink flex items-center gap-1">
+                    <span>✂️</span>
+                    <span>Ready-to-Cut Commercial Guidelines:</span>
+                  </p>
+                  <p>• Dashed vertical cut line down the center (105 mm)</p>
+                  <p>• Dashed horizontal cut line across the page (148 mm)</p>
+                  <p>• Complete printing and folding assembly guide on lower half</p>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleDownloadTwoUpA4Pdf}
+                    disabled={isExporting !== null}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-control bg-cobalt-600 hover:bg-cobalt-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                  >
+                    {isExporting === "a4-pdf" ? (
+                      <RefreshIcon size={14} className="animate-spin" />
+                    ) : (
+                      <PrinterIcon size={14} />
+                    )}
+                    <span>{isExporting === "a4-pdf" ? "Exporting…" : "Download 2-Up A4 PDF"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadTwoUpA4Png}
+                    disabled={isExporting !== null}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-control border border-cobalt-300 bg-white hover:bg-cobalt-50 text-xs font-semibold text-cobalt-800 transition-colors disabled:opacity-50"
+                  >
+                    {isExporting === "a4-png" ? (
+                      <RefreshIcon size={14} className="animate-spin" />
+                    ) : (
+                      <DownloadIcon size={14} />
+                    )}
+                    <span>A4 PNG</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Dynamic QR & NFC URL Destination Details */}
               <div className="space-y-3 pt-3 border-t border-black/[0.06]">
                 {/* QR Destination */}
@@ -1109,6 +1257,17 @@ export default function StandeeDesignerClient({
               </button>
               <button
                 type="button"
+                onClick={() => setViewMode("a4")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  viewMode === "a4"
+                    ? "bg-white text-ink shadow-xs"
+                    : "text-ink-secondary hover:text-ink"
+                }`}
+              >
+                📄 2-Up A4 Sheet
+              </button>
+              <button
+                type="button"
                 onClick={() => setViewMode("compare")}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                   viewMode === "compare"
@@ -1154,6 +1313,123 @@ export default function StandeeDesignerClient({
                   publicUrl={qrTargetUrl}
                   nfcUrl={nfcTargetUrl}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* VIEW MODE 3: 2-UP A4 SHEET PREVIEW (2x Side-by-Side Standees at Top) */}
+          {viewMode === "a4" && (
+            <div className="rounded-card bg-surface-subtle border border-black/[0.09] p-4 sm:p-6 flex flex-col items-center justify-center min-h-[580px] shadow-panel overflow-hidden">
+              {/* Floating Sheet Controls */}
+              <div className="w-full max-w-[560px] flex items-center justify-between mb-3 px-1">
+                <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                  <span>📄</span>
+                  <span>A4 Sheet (210 × 297 mm) · 2x Standees at Top</span>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleDownloadTwoUpA4Pdf}
+                    disabled={isExporting !== null}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-cobalt-600 hover:bg-cobalt-700 text-white text-[11px] font-bold shadow-2xs"
+                  >
+                    <PrinterIcon size={12} />
+                    <span>Download A4 PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadTwoUpA4Png}
+                    disabled={isExporting !== null}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-black/15 bg-white hover:bg-surface-subtle text-ink text-[11px] font-semibold shadow-2xs"
+                  >
+                    <DownloadIcon size={12} />
+                    <span>A4 PNG</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Realistic A4 White Paper Container */}
+              <div className="w-full max-w-[560px] aspect-[210/297] rounded-lg shadow-2xl border border-black/10 bg-white p-3 flex flex-col justify-between relative overflow-hidden select-none">
+                {/* Top Half: 2 A6 Standees Side by Side */}
+                <div className="relative w-full aspect-[210/148] flex border border-black/10 rounded-sm overflow-hidden bg-white shadow-xs">
+                  {/* Standee 1 (Left: 0 to 105 mm) */}
+                  <div className="w-1/2 h-full border-r border-dashed border-slate-400 relative">
+                    <StandeeArtwork
+                      design={design}
+                      qrDataUrl={qrDataUrl}
+                      publicUrl={qrTargetUrl}
+                      nfcUrl={nfcTargetUrl}
+                      showBleed={false}
+                      showCropMarks={false}
+                    />
+                    <div className="absolute top-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
+                      Standee #1
+                    </div>
+                  </div>
+
+                  {/* Standee 2 (Right: 105 to 210 mm) */}
+                  <div className="w-1/2 h-full relative">
+                    <StandeeArtwork
+                      design={design}
+                      qrDataUrl={qrDataUrl}
+                      publicUrl={qrTargetUrl}
+                      nfcUrl={nfcTargetUrl}
+                      showBleed={false}
+                      showCropMarks={false}
+                    />
+                    <div className="absolute top-1 right-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
+                      Standee #2
+                    </div>
+                  </div>
+
+                  {/* Center Vertical Cut Guide Badge */}
+                  <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 flex flex-col justify-between items-center pointer-events-none py-1">
+                    <span className="bg-slate-800 text-white text-[8px] font-bold px-1 rounded shadow-xs">
+                      ✂ 105 mm
+                    </span>
+                    <span className="bg-slate-800 text-white text-[8px] font-bold px-1 rounded shadow-xs">
+                      ✂ CUT
+                    </span>
+                  </div>
+                </div>
+
+                {/* Horizontal Cut Guideline Bar */}
+                <div className="my-1.5 flex items-center gap-2 text-slate-500 text-[10px] font-semibold">
+                  <span className="shrink-0">✂ CUT LINE (148 mm Trim)</span>
+                  <div className="flex-1 border-t-2 border-dashed border-slate-400" />
+                  <span className="shrink-0">✂</span>
+                </div>
+
+                {/* Bottom Half: Professional Instructions & Folding Guide */}
+                <div className="flex-1 rounded-md border border-slate-200 bg-slate-50 p-2.5 sm:p-3 flex flex-col justify-between text-left">
+                  <div>
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <span className="text-[11px] font-bold text-slate-900">
+                        2x A6 Tabletop Review Standees — Ready to Print &amp; Cut
+                      </span>
+                      <span className="text-[9px] font-semibold text-cobalt-700 bg-cobalt-100 px-1.5 py-0.2 rounded border border-cobalt-200">
+                        600 DPI Press Master
+                      </span>
+                    </div>
+
+                    <div className="mt-2 space-y-1 text-[10px] text-slate-700">
+                      <p>
+                        <strong className="text-slate-900">1. Print:</strong> Print at 100% scale (no scaling) on 300+ GSM cardstock or photo paper.
+                      </p>
+                      <p>
+                        <strong className="text-slate-900">2. Trim:</strong> Cut along the 148 mm bottom dashed line, then down the 105 mm center line.
+                      </p>
+                      <p>
+                        <strong className="text-slate-900">3. Display &amp; Tap:</strong> Slide both cards into acrylic stands and program the NFC tags to your review URL.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[9px] text-slate-500">
+                    <span>Business: {design.businessName}</span>
+                    <span>Reviewly SaaS Master Sheet</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}

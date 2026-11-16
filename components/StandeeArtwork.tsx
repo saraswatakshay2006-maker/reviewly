@@ -81,7 +81,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
     // Dynamic font sizing for long business names
     const nameLength = businessName.length;
     const nameFontSize =
-      nameLength > 28 ? 32 : nameLength > 20 ? 38 : nameLength > 14 ? 44 : 48;
+      nameLength > 28 ? 34 : nameLength > 20 ? 40 : nameLength > 14 ? 46 : 50;
 
     return (
       <svg
@@ -211,10 +211,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             />
           </g>
 
-          {/* Business Name inside Top Wave */}
+          {/* Business Name inside Top Wave (No Tagline on A6 Print as Requested) */}
           <text
             x="620"
-            y="158"
+            y="166"
             textAnchor="middle"
             fill="#FFFFFF"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -225,28 +225,12 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           >
             {businessName}
           </text>
-
-          {/* Tagline inside Top Wave */}
-          <text
-            x="620"
-            y="190"
-            textAnchor="middle"
-            fill="#FFFFFF"
-            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-            fontWeight="700"
-            fontSize="16"
-            letterSpacing="3.5"
-            opacity="0.95"
-            textRendering="geometricPrecision"
-          >
-            {tagline}
-          </text>
         </g>
 
         {/* =================================================================== */}
         {/* MIDDLE SECTION — REVIEW INVITATION WITH RADIANT SPARKS & STARS      */}
         {/* =================================================================== */}
-        <g id="review-invitation-section" transform="translate(620, 310)">
+        <g id="review-invitation-section" transform="translate(620, 268)">
           {/* Sub-headline: Loved Our Service? */}
           <text
             x="0"
@@ -263,7 +247,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           </text>
 
           {/* Main Huge Headline: Review Us with Radiant Bursts */}
-          <g transform="translate(0, 72)">
+          <g transform="translate(0, 68)">
             {/* Left Golden Radiant Sparks */}
             <g transform="translate(-235, -20)" stroke="#F5A623" strokeWidth="4.5" strokeLinecap="round">
               {/* Top ray */}
@@ -301,7 +285,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           </g>
 
           {/* 5 Solid Golden Decorative Stars */}
-          <g id="decorative-five-stars" transform="translate(0, 150)">
+          <g id="decorative-five-stars" transform="translate(0, 142)">
             {[-2, -1, 0, 1, 2].map((offset) => {
               const cx = offset * 54;
               const cy = 0;
@@ -329,7 +313,7 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           {/* Supporting Text */}
           <text
             x="0"
-            y="205"
+            y="192"
             textAnchor="middle"
             fill="#4A5568"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -347,14 +331,14 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
         {/* =================================================================== */}
 
         {/* LEFT PANEL: QR SCAN */}
-        <g id="panel-qr-scan" transform="translate(70, 580)">
+        <g id="panel-qr-scan" transform="translate(42, 475)">
           {/* Pale Mint Container Box */}
           <rect
             x="0"
             y="0"
-            width="495"
-            height="580"
-            rx="32"
+            width="540"
+            height="715"
+            rx="34"
             fill="url(#mint-panel-grad)"
             stroke="#D6EBE2"
             strokeWidth="2"
@@ -363,43 +347,43 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
 
           {/* Crisp White Container Behind QR with Soft Shadow */}
           <rect
-            x="52"
-            y="48"
-            width="390"
-            height="370"
-            rx="24"
+            x="30"
+            y="26"
+            width="480"
+            height="480"
+            rx="26"
             fill="#FFFFFF"
-            filter="drop-shadow(0px 4px 12px rgba(0,0,0,0.06))"
+            filter="drop-shadow(0px 4px 14px rgba(0,0,0,0.07))"
           />
 
           {/* 4 Green Corner Viewfinder / Scanner Brackets */}
-          <g stroke={primary} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none">
+          <g stroke={primary} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none">
             {/* Top-Left */}
-            <path d="M 68 88 L 68 64 L 92 64" />
+            <path d="M 42 76 L 42 38 L 76 38" />
             {/* Top-Right */}
-            <path d="M 402 64 L 426 64 L 426 88" />
+            <path d="M 464 38 L 498 38 L 498 76" />
             {/* Bottom-Left */}
-            <path d="M 68 378 L 68 402 L 92 402" />
+            <path d="M 42 464 L 42 502 L 76 502" />
             {/* Bottom-Right */}
-            <path d="M 402 402 L 426 402 L 426 378" />
+            <path d="M 464 502 L 498 502 L 498 464" />
           </g>
 
-          {/* Dynamic Real Scannable QR Code */}
+          {/* Dynamic Real Scannable QR Code - Max Large Size for Distance Scanning (+75% Area) */}
           {qrDataUrl && (
             <image
               href={qrDataUrl}
-              x="72"
-              y="68"
-              width="350"
-              height="330"
+              x="48"
+              y="44"
+              width="444"
+              height="444"
               preserveAspectRatio="xMidYMid meet"
             />
           )}
 
           {/* Center Brand Badge on QR Code */}
-          <circle cx="247.5" cy="233" r="32" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2.5" />
+          <circle cx="270" cy="266" r="40" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="3" />
           {/* Matching Mini Logo / Dumbbell Emblem inside QR */}
-          <g transform="translate(247.5, 233)">
+          <g transform="translate(270, 266)">
             <BusinessLogoEmblems
               type={design.emblemType}
               category={design.tagline || ""}
@@ -407,24 +391,24 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               logoUrl={design.logoUrl}
               primaryColor={primary}
               accentColor={limeAccent}
-              size={36}
+              size={46}
               isMini={true}
             />
           </g>
 
           {/* Solid Green Pill Button: [—] SCAN */}
-          <g transform="translate(137.5, 442)">
+          <g transform="translate(145, 532)">
             <rect
               x="0"
               y="0"
-              width="220"
-              height="54"
-              rx="27"
+              width="250"
+              height="58"
+              rx="29"
               fill={primary}
               filter="url(#pill-shadow)"
             />
             {/* Viewfinder scanner icon */}
-            <g transform="translate(32, 16)" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
+            <g transform="translate(38, 17)" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
               <path d="M 0 6 L 0 0 L 6 0" />
               <path d="M 18 0 L 24 0 L 24 6" />
               <path d="M 0 16 L 0 22 L 6 22" />
@@ -432,13 +416,13 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               <line x1="4" y1="11" x2="20" y2="11" strokeWidth="2" />
             </g>
             <text
-              x="132"
-              y="35"
+              x="146"
+              y="37"
               textAnchor="middle"
               fill="#FFFFFF"
               fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="900"
-              fontSize="24"
+              fontSize="25"
               letterSpacing="2.5"
               textRendering="geometricPrecision"
             >
@@ -448,26 +432,26 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
 
           {/* Instruction Text Below Pill */}
           <text
-            x="247.5"
-            y="526"
+            x="270"
+            y="628"
             textAnchor="middle"
             fill="#1A202C"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
-            fontSize="21"
+            fontSize="23"
             letterSpacing="0.2"
             textRendering="geometricPrecision"
           >
             Scan the QR code
           </text>
           <text
-            x="247.5"
-            y="552"
+            x="270"
+            y="658"
             textAnchor="middle"
             fill="#1A202C"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
-            fontSize="21"
+            fontSize="23"
             letterSpacing="0.2"
             textRendering="geometricPrecision"
           >
@@ -477,12 +461,12 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
 
         {/* CENTER DIVIDER: Hairline with Circular "OR" Badge */}
         <g id="center-or-divider">
-          {/* Vertical hairline line */}
+          {/* Vertical hairline top line */}
           <line
             x1="620"
-            y1="630"
+            y1="520"
             x2="620"
-            y2="835"
+            y2="795"
             stroke="#CBD5E1"
             strokeWidth="2"
           />
@@ -490,44 +474,45 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           {/* Center Dark Green "OR" Circle */}
           <circle
             cx="620"
-            cy="870"
-            r="35"
+            cy="830"
+            r="36"
             fill={primary}
             filter="url(#or-badge-shadow)"
           />
           <text
             x="620"
-            y="878"
+            y="838"
             textAnchor="middle"
             fill="#FFFFFF"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="900"
-            fontSize="20"
+            fontSize="21"
             letterSpacing="1"
             textRendering="geometricPrecision"
           >
             OR
           </text>
 
+          {/* Vertical hairline bottom line */}
           <line
             x1="620"
-            y1="905"
+            y1="865"
             x2="620"
-            y2="1110"
+            y2="1140"
             stroke="#CBD5E1"
             strokeWidth="2"
           />
         </g>
 
         {/* RIGHT PANEL: NFC TAP */}
-        <g id="panel-nfc-tap" transform="translate(675, 580)">
+        <g id="panel-nfc-tap" transform="translate(658, 475)">
           {/* Pale Mint Container Box */}
           <rect
             x="0"
             y="0"
-            width="495"
-            height="580"
-            rx="32"
+            width="540"
+            height="715"
+            rx="34"
             fill="url(#mint-panel-grad)"
             stroke="#D6EBE2"
             strokeWidth="2"
@@ -535,32 +520,33 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           />
 
           {/* NFC Contactless Target Rings & Phone Tap Illustration */}
-          <g id="nfc-target-area" transform="translate(247.5, 230)">
-            {/* Outer Circular Ring */}
+          <g id="nfc-target-area" transform="translate(270, 266)">
+            {/* Outer Circular Ring (Enlarged to 400px diameter) */}
             <circle
               cx="0"
               cy="0"
-              r="145"
+              r="200"
               fill="none"
               stroke={primary}
-              strokeWidth="10"
+              strokeWidth="12"
               opacity="0.95"
             />
 
-            {/* Concentric Radiating NFC Waves (Left side of phone) */}
+            {/* Concentric Radiating NFC Waves (Prominent, thick) */}
             <g
-              transform="translate(-65, 0)"
+              transform="translate(-90, 0)"
               stroke={primary}
-              strokeWidth="9"
+              strokeWidth="11"
               strokeLinecap="round"
               fill="none"
             >
-              <path d="M -35 -50 A 65 65 0 0 0 -35 50" />
-              <path d="M -15 -35 A 45 45 0 0 0 -15 35" />
+              <path d="M -50 -70 A 90 90 0 0 0 -50 70" />
+              <path d="M -24 -50 A 64 64 0 0 0 -24 50" />
+              <path d="M 2 -30 A 38 38 0 0 0 2 30" strokeWidth="10" />
             </g>
 
-            {/* Hand Holding Smartphone Vector (Matching Reference Photo) */}
-            <g transform="translate(30, -5) rotate(12)">
+            {/* Hand Holding Smartphone Vector (Scaled up 1.28x for maximum visibility) */}
+            <g transform="translate(48, -6) rotate(12) scale(1.28)">
               {/* Smartphone Body */}
               <rect
                 x="-42"
@@ -608,19 +594,19 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           </g>
 
           {/* Solid Green Pill Button: ))) TAP */}
-          <g transform="translate(137.5, 442)">
+          <g transform="translate(145, 532)">
             <rect
               x="0"
               y="0"
-              width="220"
-              height="54"
-              rx="27"
+              width="250"
+              height="58"
+              rx="29"
               fill={primary}
               filter="url(#pill-shadow)"
             />
             {/* NFC Waves Icon in Pill */}
             <g
-              transform="translate(32, 17)"
+              transform="translate(38, 18)"
               stroke="#FFFFFF"
               strokeWidth="2.5"
               strokeLinecap="round"
@@ -631,13 +617,13 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               <path d="M 12 12 A 4 4 0 0 1 12 10" />
             </g>
             <text
-              x="132"
-              y="35"
+              x="146"
+              y="37"
               textAnchor="middle"
               fill="#FFFFFF"
               fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="900"
-              fontSize="24"
+              fontSize="25"
               letterSpacing="2.5"
               textRendering="geometricPrecision"
             >
@@ -647,26 +633,26 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
 
           {/* Instruction Text Below Pill */}
           <text
-            x="247.5"
-            y="526"
+            x="270"
+            y="628"
             textAnchor="middle"
             fill="#1A202C"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
-            fontSize="21"
+            fontSize="23"
             letterSpacing="0.2"
             textRendering="geometricPrecision"
           >
             Tap your NFC
           </text>
           <text
-            x="247.5"
-            y="552"
+            x="270"
+            y="658"
             textAnchor="middle"
             fill="#1A202C"
             fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
-            fontSize="21"
+            fontSize="23"
             letterSpacing="0.2"
             textRendering="geometricPrecision"
           >

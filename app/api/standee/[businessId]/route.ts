@@ -6,7 +6,7 @@ import {
   getStandeeDesignForBusiness,
   saveStandeeDesign,
 } from "@/lib/repo";
-import { inferEmblemType } from "@/components/BusinessLogoEmblems";
+import { inferEmblemType } from "@/lib/logoEmblems";
 
 const standeeSaveSchema = z.object({
   themeId: z.string().min(1).max(60),
@@ -113,4 +113,3 @@ export async function POST(
     );
   }
 }
-
