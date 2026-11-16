@@ -680,7 +680,7 @@ export default function StandeeDesignerClient({
                 {/* Logo Upload or URL */}
                 <div>
                   <label className="block text-xs font-semibold text-ink mb-1">
-                    Business Logo
+                    Upload Custom Business Logo
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -693,15 +693,66 @@ export default function StandeeDesignerClient({
                       <button
                         type="button"
                         onClick={() => setDesign((p) => ({ ...p, logoUrl: "" }))}
-                        className="text-[11px] text-red-600 hover:underline shrink-0"
+                        className="text-[11px] text-red-600 hover:underline shrink-0 font-medium"
                       >
                         Remove Logo
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-ink-muted mt-1">
-                    Leave blank to automatically use a luxury monogram badge with your initials.
+                  {design.logoUrl && (
+                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                      ✓ Custom logo active. Will appear in top wave and center of QR.
+                    </p>
+                  )}
+                </div>
+
+                {/* Vector Brand Emblem Selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">
+                    Or Choose Business Vector Emblem
+                  </label>
+                  <p className="text-[11px] text-ink-muted mb-2">
+                    Appears in the top wave banner and the center of your QR code:
                   </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: "gym", label: "Gym & Fitness", icon: "🏋️‍♂️", desc: "Dumbbell & Weights" },
+                      { id: "salon", label: "Salon & Spa", icon: "✂️", desc: "Shears & Sparkle" },
+                      { id: "restaurant", label: "Dining & Cafe", icon: "🍽️", desc: "Chef & Plate" },
+                      { id: "healthcare", label: "Healthcare", icon: "🩺", desc: "Medical Cross" },
+                      { id: "automotive", label: "Automotive", icon: "🚗", desc: "Vehicle Front" },
+                      { id: "hotel", label: "Hotel & Stay", icon: "👑", desc: "Royal Crown" },
+                      { id: "retail", label: "Retail & Shop", icon: "🛍️", desc: "Shopping Bag" },
+                      { id: "crest", label: "Monogram Crest", icon: "🏛️", desc: "Initials Badge" },
+                    ].map((emblem) => {
+                      const isSelected =
+                        (design.emblemType || "gym") === emblem.id && !design.logoUrl;
+                      return (
+                        <button
+                          key={emblem.id}
+                          type="button"
+                          onClick={() =>
+                            setDesign((p) => ({
+                              ...p,
+                              emblemType: emblem.id,
+                              logoUrl: "",
+                            }))
+                          }
+                          className={`text-left p-2.5 rounded-lg border transition-all ${
+                            isSelected
+                              ? "border-cobalt-600 bg-cobalt-50/60 text-cobalt-950 ring-2 ring-cobalt-600/20 font-semibold"
+                              : "border-black/10 bg-white hover:bg-surface-subtle text-ink"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 text-xs font-medium">
+                            <span>{emblem.icon}</span>
+                            <span>{emblem.label}</span>
+                          </div>
+                          <p className="text-[10px] text-ink-muted mt-0.5">{emblem.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Pre-Headline */}

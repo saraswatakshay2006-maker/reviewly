@@ -1313,6 +1313,7 @@ export const getStandeeDesignForBusiness = async (
         biz.description?.trim() ||
         `${biz.category ? biz.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
       logoUrl: biz.logoUrl || "",
+      emblemType: "gym",
       headline: "Loved Our Service?",
       mainHeadline: "Review Us",
       supportingText:

@@ -123,6 +123,7 @@ export default async function CardsPage({
       business.description ||
       `${business.category ? business.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
     logoUrl: business.logoUrl || "",
+    emblemType: "gym",
     headline: "Loved Our Service?",
     mainHeadline: "Review Us",
     supportingText:

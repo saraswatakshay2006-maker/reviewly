@@ -324,6 +324,7 @@ export interface StandeeDesign {
   businessName: string;
   tagline: string;
   logoUrl: string;
+  emblemType?: string;
   headline: string;
   mainHeadline: string;
   supportingText: string;

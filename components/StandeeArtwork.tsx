@@ -1,5 +1,9 @@
 import React, { forwardRef } from "react";
 import type { StandeeDesign } from "@/lib/types";
+import BusinessLogoEmblems, {
+  inferEmblemType,
+  type LogoEmblemType,
+} from "./BusinessLogoEmblems";
 
 export interface StandeeArtworkProps {
   design: StandeeDesign;
@@ -25,6 +29,8 @@ export interface StandeeArtworkProps {
  * - Hand holding phone tapping NFC target vector
  * - 3 bottom value icons: Star, Heart, Growth Chart
  * - Signature cursive "Thank You!" footer banner
+ * - High-definition geometricPrecision text & vector rendering for ultra-crisp print quality
+ * - Dynamic business logo / Gym Dumbbell emblem fallback
  */
 export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
   function StandeeArtwork(
@@ -72,14 +78,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
       "Your feedback helps us grow and serve you better!";
     const footerText = design.footerText || "Thank You!";
 
-    const initials = businessName
-      ? businessName
-          .split(/\s+/)
-          .filter(Boolean)
-          .slice(0, 2)
-          .map((w) => w[0])
-          .join("")
-      : "FZ";
+    // Dynamic font sizing for long business names
+    const nameLength = businessName.length;
+    const nameFontSize =
+      nameLength > 28 ? 32 : nameLength > 20 ? 38 : nameLength > 14 ? 44 : 48;
 
     return (
       <svg
@@ -87,15 +89,27 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
         xmlns="http://www.w3.org/2000/svg"
         viewBox={viewBox}
         className={className}
+        textRendering="geometricPrecision"
+        shapeRendering="geometricPrecision"
+        imageRendering="optimizeQuality"
         style={{
           width: "100%",
           height: "100%",
           display: "block",
           userSelect: "none",
+          WebkitFontSmoothing: "antialiased",
           ...style,
         }}
       >
         <defs>
+          <style>{`
+            .standee-font {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              text-rendering: geometricPrecision;
+              -webkit-font-smoothing: antialiased;
+            }
+          `}</style>
+
           {/* Subtle drop shadow filters */}
           <filter id="soft-card-shadow" x="-5%" y="-5%" width="110%" height="110%">
             <feDropShadow
@@ -184,31 +198,17 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             opacity="0.06"
           />
 
-          {/* Logo / Monogram Icon in Top Wave */}
-          <g id="top-logo-group" transform="translate(620, 82)">
-            {design.logoUrl ? (
-              <image
-                href={design.logoUrl}
-                x="-40"
-                y="-40"
-                width="80"
-                height="80"
-                preserveAspectRatio="xMidYMid meet"
-              />
-            ) : (
-              /* Dumbbell / Fitness emblem fallback matching reference */
-              <g transform="scale(1.2)">
-                <rect x="-18" y="-3" width="36" height="6" rx="2" fill="#FFFFFF" />
-                {/* Dumbbell Left Weights */}
-                <rect x="-24" y="-12" width="6" height="24" rx="2" fill={limeAccent} />
-                <rect x="-30" y="-16" width="6" height="32" rx="2" fill="#FFFFFF" />
-                <circle cx="-27" cy="0" r="2" fill={primary} />
-                {/* Dumbbell Right Weights */}
-                <rect x="18" y="-12" width="6" height="24" rx="2" fill={limeAccent} />
-                <rect x="24" y="-16" width="6" height="32" rx="2" fill="#FFFFFF" />
-                <circle cx="27" cy="0" r="2" fill={primary} />
-              </g>
-            )}
+          {/* Logo / Monogram Icon in Top Wave (Wide, Prominent, Exactly Like Reference) */}
+          <g id="top-logo-group" transform="translate(620, 84)">
+            <BusinessLogoEmblems
+              type={design.emblemType}
+              category={design.tagline || ""}
+              businessName={businessName}
+              logoUrl={design.logoUrl}
+              primaryColor={primary}
+              accentColor={limeAccent}
+              size={150}
+            />
           </g>
 
           {/* Business Name inside Top Wave */}
@@ -217,10 +217,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="158"
             textAnchor="middle"
             fill="#FFFFFF"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="900"
-            fontSize="46"
+            fontSize={nameFontSize}
             letterSpacing="2.5"
+            textRendering="geometricPrecision"
           >
             {businessName}
           </text>
@@ -231,11 +232,12 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="190"
             textAnchor="middle"
             fill="#FFFFFF"
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="600"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+            fontWeight="700"
             fontSize="16"
             letterSpacing="3.5"
-            opacity="0.9"
+            opacity="0.95"
+            textRendering="geometricPrecision"
           >
             {tagline}
           </text>
@@ -251,10 +253,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="0"
             textAnchor="middle"
             fill="#1A2E26"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="800"
             fontSize="38"
             letterSpacing="0.5"
+            textRendering="geometricPrecision"
           >
             {headline1}
           </text>
@@ -277,10 +280,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="18"
               textAnchor="middle"
               fill={primary}
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="900"
               fontSize="82"
               letterSpacing="1"
+              textRendering="geometricPrecision"
             >
               {headline2}
             </text>
@@ -328,10 +332,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="205"
             textAnchor="middle"
             fill="#4A5568"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="600"
             fontSize="23"
             letterSpacing="0.3"
+            textRendering="geometricPrecision"
           >
             {supportingText}
           </text>
@@ -392,14 +397,19 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
           )}
 
           {/* Center Brand Badge on QR Code */}
-          <circle cx="247.5" cy="233" r="28" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
-          {/* Mini Dumbbell / Monogram Logo inside QR */}
-          <g transform="translate(247.5, 233) scale(0.65)">
-            <rect x="-14" y="-2" width="28" height="4" rx="1" fill={primary} />
-            <rect x="-18" y="-9" width="4" height="18" rx="1" fill={primary} />
-            <rect x="-22" y="-12" width="4" height="24" rx="1" fill={primary} />
-            <rect x="14" y="-9" width="4" height="18" rx="1" fill={primary} />
-            <rect x="18" y="-12" width="4" height="24" rx="1" fill={primary} />
+          <circle cx="247.5" cy="233" r="32" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2.5" />
+          {/* Matching Mini Logo / Dumbbell Emblem inside QR */}
+          <g transform="translate(247.5, 233)">
+            <BusinessLogoEmblems
+              type={design.emblemType}
+              category={design.tagline || ""}
+              businessName={businessName}
+              logoUrl={design.logoUrl}
+              primaryColor={primary}
+              accentColor={limeAccent}
+              size={36}
+              isMini={true}
+            />
           </g>
 
           {/* Solid Green Pill Button: [—] SCAN */}
@@ -426,10 +436,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="35"
               textAnchor="middle"
               fill="#FFFFFF"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="900"
               fontSize="24"
               letterSpacing="2.5"
+              textRendering="geometricPrecision"
             >
               SCAN
             </text>
@@ -441,10 +452,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="526"
             textAnchor="middle"
             fill="#1A202C"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
             fontSize="21"
             letterSpacing="0.2"
+            textRendering="geometricPrecision"
           >
             Scan the QR code
           </text>
@@ -453,10 +465,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="552"
             textAnchor="middle"
             fill="#1A202C"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
             fontSize="21"
             letterSpacing="0.2"
+            textRendering="geometricPrecision"
           >
             with your phone
           </text>
@@ -487,10 +500,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="878"
             textAnchor="middle"
             fill="#FFFFFF"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="900"
             fontSize="20"
             letterSpacing="1"
+            textRendering="geometricPrecision"
           >
             OR
           </text>
@@ -621,10 +635,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="35"
               textAnchor="middle"
               fill="#FFFFFF"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="900"
               fontSize="24"
               letterSpacing="2.5"
+              textRendering="geometricPrecision"
             >
               TAP
             </text>
@@ -636,10 +651,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="526"
             textAnchor="middle"
             fill="#1A202C"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
             fontSize="21"
             letterSpacing="0.2"
+            textRendering="geometricPrecision"
           >
             Tap your NFC
           </text>
@@ -648,10 +664,11 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
             y="552"
             textAnchor="middle"
             fill="#1A202C"
-            fontFamily="system-ui, -apple-system, sans-serif"
+            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
             fontWeight="700"
             fontSize="21"
             letterSpacing="0.2"
+            textRendering="geometricPrecision"
           >
             enabled phone here
           </text>
@@ -678,9 +695,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="45"
               textAnchor="middle"
               fill="#1A202C"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="800"
               fontSize="22"
+              textRendering="geometricPrecision"
             >
               Share Your
             </text>
@@ -689,9 +707,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="72"
               textAnchor="middle"
               fill="#1A202C"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="800"
               fontSize="22"
+              textRendering="geometricPrecision"
             >
               Experience
             </text>
@@ -715,9 +734,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="45"
               textAnchor="middle"
               fill="#1A202C"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="800"
               fontSize="22"
+              textRendering="geometricPrecision"
             >
               Help Us
             </text>
@@ -726,9 +746,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="72"
               textAnchor="middle"
               fill="#1A202C"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="800"
               fontSize="22"
+              textRendering="geometricPrecision"
             >
               Improve
             </text>
@@ -757,9 +778,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="45"
               textAnchor="middle"
               fill="#1A202C"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="800"
               fontSize="22"
+              textRendering="geometricPrecision"
             >
               Support
             </text>
@@ -768,9 +790,10 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               y="72"
               textAnchor="middle"
               fill="#1A202C"
-              fontFamily="system-ui, -apple-system, sans-serif"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
               fontWeight="800"
               fontSize="22"
+              textRendering="geometricPrecision"
             >
               Our Growth
             </text>
@@ -809,19 +832,20 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
               fontFamily="'Brush Script MT', 'Dancing Script', 'Caveat', 'Segoe Script', cursive, sans-serif"
               fontStyle="italic"
               fontWeight="700"
-              fontSize="82"
+              fontSize="84"
               letterSpacing="2"
+              textRendering="geometricPrecision"
             >
               {footerText}
             </text>
             {/* Signature Underline Flourish */}
             <path
-              d="M -160 14 Q 0 28 160 14"
+              d="M -160 16 Q 0 30 160 16"
               stroke={limeAccent}
-              strokeWidth="3.5"
+              strokeWidth="4"
               strokeLinecap="round"
               fill="none"
-              opacity="0.85"
+              opacity="0.9"
             />
           </g>
         </g>
