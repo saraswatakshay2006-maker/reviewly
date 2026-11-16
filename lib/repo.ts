@@ -13,7 +13,7 @@ import {
   pickLatestOrgSubscription,
   syncExpiredSubscriptions,
 } from "./entitlements";
-import { DEFAULT_PLAN_RECORDS } from "./planSeed";
+import { DEFAULT_PLAN_RECORDS, DEFAULT_STANDEE_THEMES } from "./planSeed";
 import type {
   Business,
   CustomerSession,
@@ -25,6 +25,9 @@ import type {
   PlanRecord,
   ReviewCard,
   Role,
+  StandeeColors,
+  StandeeDesign,
+  StandeeTheme,
   SubscriptionRecord,
   User,
 } from "./types";
@@ -1231,6 +1234,11 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
       cards,
       feedback,
       recentEvents,
+      standeeThemes:
+        db.standeeThemes && db.standeeThemes.length > 0
+          ? db.standeeThemes
+          : DEFAULT_STANDEE_THEMES,
+      standeeDesigns: db.standeeDesigns || [],
     };
   });
 };
@@ -1257,3 +1265,229 @@ export const exportSanitizedBackup = () =>
     events: db.events,
     feedback: db.feedback,
   }));
+
+// ---------- Standee Themes & Custom Designs ----------
+export const listStandeeThemes = () =>
+  readDB((db) => {
+    const list =
+      db.standeeThemes && db.standeeThemes.length > 0
+        ? db.standeeThemes
+        : DEFAULT_STANDEE_THEMES;
+    return list.filter((t) => t.isEnabled);
+  });
+
+export const adminListAllStandeeThemes = () =>
+  readDB((db) => {
+    return db.standeeThemes && db.standeeThemes.length > 0
+      ? db.standeeThemes
+      : DEFAULT_STANDEE_THEMES;
+  });
+
+export const getStandeeDesignForBusiness = async (
+  businessId: string
+): Promise<StandeeDesign | null> => {
+  return readDB((db) => {
+    const biz = db.businesses.find((b) => b.id === businessId);
+    if (!biz) return null;
+
+    const existing = db.standeeDesigns?.find((d) => d.businessId === businessId);
+    if (existing) return existing;
+
+    const themes =
+      db.standeeThemes && db.standeeThemes.length > 0
+        ? db.standeeThemes
+        : DEFAULT_STANDEE_THEMES;
+    const defaultTheme =
+      themes.find((t) => t.isDefault && t.isEnabled) ||
+      themes[0] ||
+      DEFAULT_STANDEE_THEMES[0];
+
+    const fallbackDesign: StandeeDesign = {
+      id: `standee_${biz.id}`,
+      businessId: biz.id,
+      organizationId: biz.organizationId,
+      themeId: defaultTheme.id,
+      colors: { ...defaultTheme.colors },
+      businessName: biz.name,
+      tagline:
+        biz.description?.trim() ||
+        `${biz.category ? biz.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
+      logoUrl: biz.logoUrl || "",
+      headline: "LOVE OUR SERVICE?",
+      mainHeadline: "SHARE YOUR EXPERIENCE",
+      supportingText:
+        "Your honest feedback helps us improve and serve you better.",
+      footerText: "THANK YOU!",
+      qrScanLabel: "SCAN",
+      qrScanInstruction: "Scan the QR code with your phone",
+      nfcTapLabel: "TAP",
+      nfcTapInstruction: "Tap your NFC-enabled phone here",
+      benefit1: "Share Your Experience",
+      benefit2: "Help Us Improve",
+      benefit3: "Support Our Growth",
+      bleedEnabled: false,
+      cropMarks: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    return fallbackDesign;
+  });
+};
+
+export const saveStandeeDesign = async (
+  businessId: string,
+  data: Partial<Omit<StandeeDesign, "id" | "businessId" | "organizationId">>
+): Promise<StandeeDesign> => {
+  return writeDB((db) => {
+    const biz = db.businesses.find((b) => b.id === businessId);
+    if (!biz) throw new Error("Business not found");
+
+    if (!db.standeeDesigns) db.standeeDesigns = [];
+    const idx = db.standeeDesigns.findIndex((d) => d.businessId === businessId);
+
+    const themes =
+      db.standeeThemes && db.standeeThemes.length > 0
+        ? db.standeeThemes
+        : DEFAULT_STANDEE_THEMES;
+    const defaultTheme =
+      themes.find((t) => t.isDefault && t.isEnabled) ||
+      themes[0] ||
+      DEFAULT_STANDEE_THEMES[0];
+    const nowIso = new Date().toISOString();
+
+    if (idx >= 0) {
+      const current = db.standeeDesigns[idx];
+      const merged: StandeeDesign = {
+        ...current,
+        ...data,
+        colors: data.colors
+          ? { ...current.colors, ...data.colors }
+          : current.colors,
+        updatedAt: nowIso,
+      };
+      db.standeeDesigns[idx] = merged;
+      return merged;
+    } else {
+      const created: StandeeDesign = {
+        id: uid(),
+        businessId: biz.id,
+        organizationId: biz.organizationId,
+        themeId: data.themeId || defaultTheme.id,
+        colors: data.colors
+          ? { ...defaultTheme.colors, ...data.colors }
+          : { ...defaultTheme.colors },
+        businessName: data.businessName || biz.name,
+        tagline:
+          data.tagline ||
+          biz.description ||
+          `${biz.category ? biz.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
+        logoUrl: data.logoUrl !== undefined ? data.logoUrl : biz.logoUrl || "",
+        headline: data.headline || "LOVE OUR SERVICE?",
+        mainHeadline: data.mainHeadline || "SHARE YOUR EXPERIENCE",
+        supportingText:
+          data.supportingText ||
+          "Your honest feedback helps us improve and serve you better.",
+        footerText: data.footerText || "THANK YOU!",
+        qrScanLabel: data.qrScanLabel || "SCAN",
+        qrScanInstruction:
+          data.qrScanInstruction || "Scan the QR code with your phone",
+        nfcTapLabel: data.nfcTapLabel || "TAP",
+        nfcTapInstruction:
+          data.nfcTapInstruction || "Tap your NFC-enabled phone here",
+        benefit1: data.benefit1 || "Share Your Experience",
+        benefit2: data.benefit2 || "Help Us Improve",
+        benefit3: data.benefit3 || "Support Our Growth",
+        bleedEnabled: data.bleedEnabled ?? false,
+        cropMarks: data.cropMarks ?? false,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      db.standeeDesigns.push(created);
+      return created;
+    }
+  });
+};
+
+export const resetStandeeDesign = async (businessId: string) => {
+  return writeDB((db) => {
+    if (!db.standeeDesigns) return { success: true };
+    db.standeeDesigns = db.standeeDesigns.filter(
+      (d) => d.businessId !== businessId
+    );
+    return { success: true };
+  });
+};
+
+export const adminUpsertStandeeTheme = async (
+  theme: Partial<StandeeTheme> & { name: string; colors: StandeeColors }
+): Promise<StandeeTheme> => {
+  return writeDB((db) => {
+    if (!db.standeeThemes)
+      db.standeeThemes = DEFAULT_STANDEE_THEMES.map((t) => ({ ...t }));
+    const nowIso = new Date().toISOString();
+
+    if (theme.id) {
+      const existingIdx = db.standeeThemes.findIndex((t) => t.id === theme.id);
+      if (existingIdx >= 0) {
+        const current = db.standeeThemes[existingIdx];
+        const updated: StandeeTheme = {
+          ...current,
+          ...theme,
+          colors: { ...current.colors, ...theme.colors },
+          updatedAt: nowIso,
+        };
+        db.standeeThemes[existingIdx] = updated;
+        return updated;
+      }
+    }
+
+    const newTheme: StandeeTheme = {
+      id: theme.id || `custom_${uid().slice(0, 8)}`,
+      name: theme.name.trim(),
+      description: theme.description?.trim() || "",
+      colors: { ...theme.colors },
+      isPreset: false,
+      isEnabled: theme.isEnabled ?? true,
+      isDefault: theme.isDefault ?? false,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    if (newTheme.isDefault) {
+      for (const t of db.standeeThemes) {
+        t.isDefault = false;
+      }
+    }
+    db.standeeThemes.push(newTheme);
+    return newTheme;
+  });
+};
+
+export const adminToggleStandeeTheme = async (
+  themeId: string,
+  isEnabled: boolean
+) => {
+  return writeDB((db) => {
+    if (!db.standeeThemes)
+      db.standeeThemes = DEFAULT_STANDEE_THEMES.map((t) => ({ ...t }));
+    const theme = db.standeeThemes.find((t) => t.id === themeId);
+    if (!theme) throw new Error("Theme not found");
+    theme.isEnabled = isEnabled;
+    theme.updatedAt = new Date().toISOString();
+    return theme;
+  });
+};
+
+export const adminSetDefaultStandeeTheme = async (themeId: string) => {
+  return writeDB((db) => {
+    if (!db.standeeThemes)
+      db.standeeThemes = DEFAULT_STANDEE_THEMES.map((t) => ({ ...t }));
+    const target = db.standeeThemes.find((t) => t.id === themeId);
+    if (!target) throw new Error("Theme not found");
+    for (const t of db.standeeThemes) {
+      t.isDefault = t.id === themeId;
+    }
+    target.isEnabled = true;
+    target.updatedAt = new Date().toISOString();
+    return target;
+  });
+};

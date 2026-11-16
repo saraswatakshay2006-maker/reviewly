@@ -16,6 +16,7 @@ import {
 import CardsStudioClient from "@/components/CardsStudioClient";
 import LocationSwitcher from "@/components/LocationSwitcher";
 import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
+import { ArrowUpRightIcon, SparklesIcon } from "@/components/Icons";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -114,6 +115,28 @@ export default async function CardsPage({
             </span>
           </div>
         )}
+      </div>
+
+      <div className="rounded-xl border border-cobalt-200 bg-cobalt-50/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div>
+          <p className="text-xs font-bold text-cobalt-950 flex items-center gap-1.5">
+            <SparklesIcon size={14} className="text-cobalt-600" />
+            <span className="rounded bg-cobalt-600 text-white text-[10px] px-1.5 py-0.5 uppercase tracking-wide">
+              New
+            </span>
+            <span>A6 Tabletop Review Standee Designer</span>
+          </p>
+          <p className="text-xs text-cobalt-800 mt-0.5">
+            Design and download vertical acrylic tabletop standees with side-by-side QR scan and NFC tap in curated color palettes.
+          </p>
+        </div>
+        <Link
+          href={`/app/standee?biz=${business.id}`}
+          className="inline-flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-control bg-cobalt-600 hover:bg-cobalt-700 text-white text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto"
+        >
+          <span>Open Standee Designer</span>
+          <ArrowUpRightIcon size={13} />
+        </Link>
       </div>
 
       <LocationSwitcher

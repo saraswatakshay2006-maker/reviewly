@@ -21,6 +21,8 @@ function emptyDB(): DB {
     coupons: [],
     platformSettings: { ...DEFAULT_PLATFORM_SETTINGS },
     seq: {},
+    standeeDesigns: [],
+    standeeThemes: [],
   });
 }
 

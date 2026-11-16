@@ -33,6 +33,7 @@ import {
   QrCodeIcon,
   SettingsIcon,
   SmartphoneIcon,
+  SparklesIcon,
   StarIcon,
 } from "@/components/Icons";
 
@@ -241,6 +242,13 @@ export default async function DashboardOverview({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/app/standee"
+            className="inline-flex items-center gap-1.5 rounded-control border border-black/10 bg-white hover:bg-surface-subtle px-3 py-2 text-xs sm:text-sm font-semibold text-ink transition-colors shadow-xs"
+          >
+            <SparklesIcon size={14} className="text-cobalt-600" />
+            <span>A6 Standee</span>
+          </Link>
           <CopyButton value={publicPath} label="Copy path" />
           <a
             href={publicPath}

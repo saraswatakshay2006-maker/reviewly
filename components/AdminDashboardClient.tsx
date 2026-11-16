@@ -29,12 +29,15 @@ import AdminSubscriptionSuite, {
   type AdminSubscriptionAnalytics,
   type AdminSubscriptionView,
 } from "./AdminSubscriptionSuite";
+import AdminStandeeManager from "./AdminStandeeManager";
 import type {
   BillingInterval,
   CouponRecord,
   OrganizationSubscription,
   PlatformBillingSettings,
   Role,
+  StandeeDesign,
+  StandeeTheme,
   SubscriptionPlan,
   SubscriptionStatus,
 } from "@/lib/types";
@@ -157,9 +160,17 @@ export interface AdminSnapshot {
   auditLogs: AdminAuditLogView[];
   coupons: CouponRecord[];
   platformSettings: PlatformBillingSettings;
+  standeeThemes?: StandeeTheme[];
+  standeeDesigns?: StandeeDesign[];
 }
 
-type AdminTab = "subscriptions" | "clients" | "users" | "businesses" | "activity";
+type AdminTab =
+  | "subscriptions"
+  | "clients"
+  | "users"
+  | "businesses"
+  | "activity"
+  | "standees";
 
 const STATUS_BADGE: Record<EffectiveSubscriptionStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -438,6 +449,10 @@ export default function AdminDashboardClient({
               { id: "users" as const, label: `Users (${data.users.length})` },
               { id: "businesses" as const, label: `Businesses & Cards (${data.businesses.length})` },
               { id: "activity" as const, label: `Feedback & Logs (${data.feedback.length})` },
+              {
+                id: "standees" as const,
+                label: `Standee Templates (${(data.standeeThemes || []).length})`,
+              },
             ].map((item) => (
               <button
                 key={item.id}
@@ -680,6 +695,23 @@ export default function AdminDashboardClient({
                 )}
               </div>
             </div>
+          </section>
+        )}
+
+        {/* Tab 5: Standee Templates & Palettes */}
+        {tab === "standees" && (
+          <section>
+            <AdminStandeeManager
+              initialThemes={data.standeeThemes || []}
+              designs={data.standeeDesigns || []}
+              businesses={data.businesses.map((b) => ({
+                id: b.id,
+                name: b.name,
+                publicSlug: b.publicSlug,
+                organizationName: b.organizationName,
+              }))}
+              onRefresh={reload}
+            />
           </section>
         )}
       </main>

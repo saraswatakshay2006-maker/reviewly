@@ -295,6 +295,52 @@ export interface FeedbackSubmission {
   createdAt: string;
 }
 
+export interface StandeeColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+  text: string;
+}
+
+export interface StandeeTheme {
+  id: string;
+  name: string;
+  description?: string;
+  colors: StandeeColors;
+  isPreset: boolean;
+  isEnabled: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StandeeDesign {
+  id: string;
+  businessId: string;
+  organizationId: string;
+  themeId: string;
+  colors: StandeeColors;
+  businessName: string;
+  tagline: string;
+  logoUrl: string;
+  headline: string;
+  mainHeadline: string;
+  supportingText: string;
+  footerText: string;
+  qrScanLabel: string;
+  qrScanInstruction: string;
+  nfcTapLabel: string;
+  nfcTapInstruction: string;
+  benefit1: string;
+  benefit2: string;
+  benefit3: string;
+  bleedEnabled?: boolean;
+  cropMarks?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DB {
   users: User[];
   organizations: Organization[];
@@ -313,4 +359,6 @@ export interface DB {
   coupons: CouponRecord[];
   platformSettings: PlatformBillingSettings;
   seq: Record<string, number>;
+  standeeDesigns?: StandeeDesign[];
+  standeeThemes?: StandeeTheme[];
 }

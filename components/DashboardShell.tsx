@@ -17,6 +17,7 @@ import {
   MessageSquareIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   UsersIcon,
 } from "./Icons";
 import {
@@ -111,21 +112,64 @@ export default function DashboardShell({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const navItems = [
-    { href: "/app", label: "Overview", icon: LayoutGridIcon, exact: true },
+  const navSections = [
     {
-      href: "/app/feedback",
-      label: "Private feedback",
-      icon: MessageSquareIcon,
-      badge: pendingFeedbackCount > 0 ? pendingFeedbackCount : null,
+      title: null,
+      items: [
+        { href: "/app", label: "Overview", icon: LayoutGridIcon, exact: true },
+        {
+          href: "/app/feedback",
+          label: "Private feedback",
+          icon: MessageSquareIcon,
+          badge: pendingFeedbackCount > 0 ? pendingFeedbackCount : null,
+          badgeLabel: null,
+        },
+      ],
     },
-    { href: "/app/cards", label: "Cards & QR", icon: CreditCardIcon },
-    { href: "/app/team", label: "Team members", icon: UsersIcon },
-    { href: "/app/settings", label: "Business settings", icon: SettingsIcon },
     {
-      href: "/app/billing",
-      label: "Subscription & Billing",
-      icon: ShieldCheckIcon,
+      title: "Marketing Tools",
+      items: [
+        {
+          href: "/app/standee",
+          label: "Custom Review Standee",
+          icon: SparklesIcon,
+          badge: null,
+          badgeLabel: "A6",
+        },
+        {
+          href: "/app/cards",
+          label: "Cards & QR",
+          icon: CreditCardIcon,
+          badge: null,
+          badgeLabel: null,
+        },
+      ],
+    },
+    {
+      title: "Management",
+      items: [
+        {
+          href: "/app/team",
+          label: "Team members",
+          icon: UsersIcon,
+          badge: null,
+          badgeLabel: null,
+        },
+        {
+          href: "/app/settings",
+          label: "Business settings",
+          icon: SettingsIcon,
+          badge: null,
+          badgeLabel: null,
+        },
+        {
+          href: "/app/billing",
+          label: "Subscription & Billing",
+          icon: ShieldCheckIcon,
+          badge: null,
+          badgeLabel: null,
+        },
+      ],
     },
   ];
 
@@ -224,44 +268,61 @@ export default function DashboardShell({
         )}
 
         {/* Navigation Links */}
-        <nav className="space-y-1" aria-label="Workspace navigation">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href, item.exact);
-            const isLockedItem = !isLive && item.href !== "/app/billing";
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={`min-h-[42px] flex items-center justify-between gap-2.5 rounded-control px-3 py-2 text-sm transition-colors ${
-                  active
-                    ? "bg-cobalt-50 text-cobalt-700 font-medium"
-                    : isLockedItem
-                      ? "text-ink-muted hover:bg-surface-subtle hover:text-ink"
-                      : "text-ink-secondary hover:bg-surface-subtle hover:text-ink"
-                }`}
-              >
-                <span className="flex items-center gap-2.5 min-w-0">
-                  <Icon
-                    size={17}
-                    className={active ? "text-cobalt-600 shrink-0" : "text-ink-muted shrink-0"}
-                  />
-                  <span className="truncate">{item.label}</span>
-                </span>
-                {isLockedItem ? (
-                  <LockIcon size={13} className="text-red-500 shrink-0" />
-                ) : (
-                  item.badge !== null &&
-                  item.badge !== undefined && (
-                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-cobalt-600 text-white text-[11px] font-medium tabular-nums">
-                      {item.badge}
+        <nav className="space-y-4" aria-label="Workspace navigation">
+          {navSections.map((sec, secIdx) => (
+            <div key={secIdx} className="space-y-1">
+              {sec.title && (
+                <p className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                  {sec.title}
+                </p>
+              )}
+              {sec.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(
+                  item.href,
+                  "exact" in item ? Boolean(item.exact) : false
+                );
+                const isLockedItem = !isLive && item.href !== "/app/billing";
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={`min-h-[40px] flex items-center justify-between gap-2.5 rounded-control px-3 py-2 text-sm transition-colors ${
+                      active
+                        ? "bg-cobalt-50 text-cobalt-700 font-medium"
+                        : isLockedItem
+                          ? "text-ink-muted hover:bg-surface-subtle hover:text-ink"
+                          : "text-ink-secondary hover:bg-surface-subtle hover:text-ink"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <Icon
+                        size={17}
+                        className={
+                          active
+                            ? "text-cobalt-600 shrink-0"
+                            : "text-ink-muted shrink-0"
+                        }
+                      />
+                      <span className="truncate">{item.label}</span>
                     </span>
-                  )
-                )}
-              </Link>
-            );
-          })}
+                    {isLockedItem ? (
+                      <LockIcon size={13} className="text-red-500 shrink-0" />
+                    ) : item.badge !== null && item.badge !== undefined ? (
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-cobalt-600 text-white text-[11px] font-medium tabular-nums">
+                        {item.badge}
+                      </span>
+                    ) : item.badgeLabel ? (
+                      <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-cobalt-50 border border-cobalt-200 text-cobalt-700 text-[10px] font-semibold">
+                        {item.badgeLabel}
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
 

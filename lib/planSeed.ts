@@ -5,9 +5,132 @@ import type {
   PlanFeatureRecord,
   PlanRecord,
   PlatformBillingSettings,
+  StandeeTheme,
   SubscriptionRecord,
 } from "./types";
 import { calculateSubscriptionPeriod } from "./subscriptions";
+
+export const DEFAULT_STANDEE_THEMES: StandeeTheme[] = [
+  {
+    id: "forest-green-gold",
+    name: "Forest Green & Gold",
+    description: "Deep luxury green paired with warm metallic gold accents",
+    colors: {
+      primary: "#063F32",
+      secondary: "#12805A",
+      accent: "#D9A441",
+      background: "#FFFFFF",
+      text: "#17211D",
+    },
+    isPreset: true,
+    isEnabled: true,
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "black-gold",
+    name: "Black & Gold",
+    description: "Ultra-sleek obsidian noir with regal gold highlights",
+    colors: {
+      primary: "#191919",
+      secondary: "#38302B",
+      accent: "#D9AC54",
+      background: "#FFFFFF",
+      text: "#171717",
+    },
+    isPreset: true,
+    isEnabled: true,
+    isDefault: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "navy-gold",
+    name: "Navy & Gold",
+    description: "Authoritative deep maritime blue with radiant warm gold",
+    colors: {
+      primary: "#102B50",
+      secondary: "#245A8D",
+      accent: "#D7AE59",
+      background: "#FFFFFF",
+      text: "#162238",
+    },
+    isPreset: true,
+    isEnabled: true,
+    isDefault: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "royal-blue",
+    name: "Royal Blue",
+    description: "Vibrant high-contrast cobalt blue with sunny amber accents",
+    colors: {
+      primary: "#143C96",
+      secondary: "#3478DB",
+      accent: "#F4BD49",
+      background: "#FFFFFF",
+      text: "#15264B",
+    },
+    isPreset: true,
+    isEnabled: true,
+    isDefault: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "burgundy-gold",
+    name: "Burgundy & Gold",
+    description: "Rich Bordeaux wine red with champagne gold detailing",
+    colors: {
+      primary: "#701D32",
+      secondary: "#9E334B",
+      accent: "#D9AC67",
+      background: "#FFFFFF",
+      text: "#282024",
+    },
+    isPreset: true,
+    isEnabled: true,
+    isDefault: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "charcoal-teal",
+    name: "Charcoal & Teal",
+    description: "Modern architectural slate charcoal with fresh mint teal",
+    colors: {
+      primary: "#26343A",
+      secondary: "#137A78",
+      accent: "#A7D8C9",
+      background: "#FFFFFF",
+      text: "#1D292D",
+    },
+    isPreset: true,
+    isEnabled: true,
+    isDefault: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "pure-minimal",
+    name: "Pure Minimal",
+    description: "Clean editorial monochrome with subtle bronze warmth",
+    colors: {
+      primary: "#222222",
+      secondary: "#666666",
+      accent: "#B89561",
+      background: "#FFFFFF",
+      text: "#181818",
+    },
+    isPreset: true,
+    isEnabled: true,
+    isDefault: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+];
 
 export const FEATURE_CATALOG: {
   key: FeatureKey;
@@ -617,6 +740,21 @@ export function migrateDBInPlace(db: DB): DB {
       reason: "Automatically repaired mis-dated annual subscription whose initial cycle was <= 45 days.",
       createdAt: new Date(nowCheckMs).toISOString(),
     });
+  }
+
+  // Ensure standeeThemes & standeeDesigns exist in DB
+  if (!db.standeeThemes || db.standeeThemes.length === 0) {
+    db.standeeThemes = DEFAULT_STANDEE_THEMES.map((t) => ({ ...t }));
+  } else {
+    for (const preset of DEFAULT_STANDEE_THEMES) {
+      if (!db.standeeThemes.some((t) => t.id === preset.id)) {
+        db.standeeThemes.push({ ...preset });
+      }
+    }
+  }
+
+  if (!db.standeeDesigns) {
+    db.standeeDesigns = [];
   }
 
   return db;
