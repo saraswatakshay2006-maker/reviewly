@@ -12,6 +12,7 @@ import { cookies } from "next/headers";
 const schema = z.object({
   name: z.string().min(1).max(80),
   email: z.string().email(),
+  phone: z.string().min(5).max(30).optional().or(z.literal("")),
   password: z.string().min(8).max(128),
   orgName: z.string().min(1).max(80),
   orgCode: z.string().min(1).max(128),
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
     user = await createUser({
       email: parsed.data.email,
       name: parsed.data.name,
+      phone: parsed.data.phone?.trim() || null,
       passwordHash: hash,
       salt,
       role: "owner",

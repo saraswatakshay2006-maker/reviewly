@@ -9,6 +9,7 @@ import {
 } from "./subscriptions";
 import {
   evaluateSubscriptionHealth,
+  getOrganizationEntitlements,
   pickLatestOrgSubscription,
   syncExpiredSubscriptions,
 } from "./entitlements";
@@ -35,7 +36,13 @@ export const createUser = (u: Omit<User, "id" | "createdAt">) =>
     if (db.users.some((x) => x.email.trim().toLowerCase() === email.toLowerCase())) {
       throw new Error("Email already registered");
     }
-    const user: User = { ...u, email, id: uid(), createdAt: new Date().toISOString() };
+    const user: User = {
+      ...u,
+      email,
+      phone: u.phone ? u.phone.trim() : null,
+      id: uid(),
+      createdAt: new Date().toISOString(),
+    };
     db.users.push(user);
     return user;
   });
@@ -350,12 +357,42 @@ export async function resolveActiveBusinessForOrg(
   organizationId: string,
   requestedBizId?: string | null
 ) {
-  const businesses = await listBusinessesForOrg(organizationId);
-  if (businesses.length === 0) return { businesses, active: null };
+  const allBusinesses = await listBusinessesForOrg(organizationId);
+  if (allBusinesses.length === 0) {
+    return {
+      businesses: allBusinesses,
+      active: null,
+      allBusinesses,
+      totalLocations: 0,
+      allowedLocations: 1,
+      hasHiddenLocations: false,
+    };
+  }
+
+  const ctx = await getOrganizationEntitlements(organizationId);
+  const maxLocations = ctx?.limits.maxLocations ?? 1;
+  const isUnlimited = maxLocations < 0;
+
+  // When downgraded or limited, locations beyond maxLocations are hidden from customer view
+  const visibleBusinesses =
+    isUnlimited || maxLocations >= allBusinesses.length
+      ? allBusinesses
+      : allBusinesses.slice(0, Math.max(1, maxLocations));
+
+  const hasHiddenLocations = allBusinesses.length > visibleBusinesses.length;
+
   const matched = requestedBizId
-    ? businesses.find((b) => b.id === requestedBizId) ?? businesses[0]
-    : businesses[0];
-  return { businesses, active: matched };
+    ? visibleBusinesses.find((b) => b.id === requestedBizId) ?? visibleBusinesses[0]
+    : visibleBusinesses[0];
+
+  return {
+    businesses: visibleBusinesses,
+    active: matched,
+    allBusinesses,
+    totalLocations: allBusinesses.length,
+    allowedLocations: isUnlimited ? -1 : maxLocations,
+    hasHiddenLocations,
+  };
 }
 
 export const monthlyAnalyticsForBusiness = (
@@ -572,6 +609,7 @@ export interface SafeUserView {
   id: string;
   email: string;
   name: string;
+  phone: string | null;
   role: Role;
   organizationId: string;
   organizationName: string;
@@ -855,6 +893,7 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
             id: u.id,
             name: u.name,
             email: u.email,
+            phone: u.phone || null,
             role: u.role,
             createdAt: u.createdAt,
           }));
@@ -907,6 +946,7 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
         id: u.id,
         email: u.email,
         name: u.name,
+        phone: u.phone || null,
         role: u.role,
         organizationId: u.organizationId,
         organizationName:
@@ -973,6 +1013,7 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
         businessName: primaryBiz?.name || o.name,
         ownerName: owner?.name || "—",
         ownerEmail: owner?.email || "—",
+        ownerPhone: owner?.phone || null,
         planId: rec?.planId || o.subscription.plan,
         planName: plan?.name || o.subscription.plan,
         amountInr: rec?.amountInr ?? o.subscription.monthlyPriceInr,
@@ -1025,14 +1066,23 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
     const cancelledSubs = subscriptions.filter((s) => s.status === "cancelled");
     const suspendedSubs = subscriptions.filter((s) => s.status === "suspended");
 
-    const mrrInr = subscriptions
-      .filter((s) => s.isUsable && ["active", "past_due"].includes(s.status))
-      .reduce((sum, s) => {
-        if (s.billingInterval === "annual") {
-          return sum + Math.round((s.amountInr || 0) / 12);
-        }
-        return sum + (s.amountInr || 0);
-      }, 0);
+    const activeMonthlySubs = activePaidSubs.filter(
+      (s) => s.billingInterval === "monthly"
+    );
+    const activeAnnualSubs = activePaidSubs.filter(
+      (s) => s.billingInterval === "annual"
+    );
+
+    const monthlyMrrInr = activeMonthlySubs.reduce(
+      (sum, s) => sum + (s.amountInr || 0),
+      0
+    );
+    const annualArrInr = activeAnnualSubs.reduce(
+      (sum, s) => sum + (s.amountInr || 0),
+      0
+    );
+    const mrrInr = monthlyMrrInr + Math.round(annualArrInr / 12);
+    const arrInr = mrrInr * 12;
 
     const nowDate = new Date(nowMs);
     const curMonthStart = Date.UTC(
@@ -1051,6 +1101,17 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
     const annualRevenueInr = successPayments
       .filter((p) => Date.parse(p.paidAt || p.createdAt) >= curYearStart)
       .reduce((sum, p) => sum + p.amountInr, 0);
+
+    const monthlyPlansRevenueInr = successPayments
+      .filter((p) => p.billingInterval === "monthly")
+      .reduce((sum, p) => sum + p.amountInr, 0);
+    const annualPlansRevenueInr = successPayments
+      .filter((p) => p.billingInterval === "annual")
+      .reduce((sum, p) => sum + p.amountInr, 0);
+    const totalRevenueInr = successPayments.reduce(
+      (sum, p) => sum + p.amountInr,
+      0
+    );
 
     const planDistribution = plans.map((p) => ({
       planId: p.id,
@@ -1088,9 +1149,16 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
       cancelledSubscriptions: cancelledSubs.length,
       suspendedSubscriptions: suspendedSubs.length,
       mrrInr,
-      arrInr: mrrInr * 12,
+      arrInr,
       monthlyRevenueInr,
       annualRevenueInr,
+      monthlyPlansRevenueInr,
+      annualPlansRevenueInr,
+      totalRevenueInr,
+      activeMonthlyCount: activeMonthlySubs.length,
+      activeAnnualCount: activeAnnualSubs.length,
+      monthlyMrrInr,
+      annualArrInr,
       paymentSuccessRatePct:
         finalizedPayments > 0
           ? Math.round((successPayments.length / finalizedPayments) * 100)
@@ -1124,6 +1192,14 @@ export const getSaasSnapshot = async (nowMs: number = Date.now()) => {
           o.subscription.status === "past_due"
       ).length,
       mrrInr,
+      arrInr,
+      totalRevenueInr,
+      monthlyPlansRevenueInr,
+      annualPlansRevenueInr,
+      activeMonthlyCount: activeMonthlySubs.length,
+      activeAnnualCount: activeAnnualSubs.length,
+      monthlyMrrInr,
+      annualArrInr,
       totalUsers: db.users.length,
       totalBusinesses: db.businesses.length,
       totalCards: db.cards.length,

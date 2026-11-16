@@ -528,11 +528,40 @@ export async function canAccessPublicReviewPage(
     };
   }
   const hasPage = ctx.featureFlags.digitalReviewPage;
+  if (!hasPage) {
+    return {
+      allowed: false,
+      status: ctx.effectiveStatus,
+      expired: false,
+      reason: "Digital review page is disabled on current plan.",
+      context: ctx,
+    };
+  }
+
+  // When downgraded or limited, extra locations beyond maxLocations are not accessible
+  if (ctx.limits.maxLocations > 0) {
+    const orgBusinesses = await readDB((db) =>
+      db.businesses.filter((b) => b.organizationId === ctx.organization.id)
+    );
+    const allowedBizIds = new Set(
+      orgBusinesses.slice(0, ctx.limits.maxLocations).map((b) => b.id)
+    );
+    if (!allowedBizIds.has(businessId)) {
+      return {
+        allowed: false,
+        status: ctx.effectiveStatus,
+        expired: false,
+        reason:
+          "This branch location is not available on the business's current subscription plan.",
+        context: ctx,
+      };
+    }
+  }
+
   return {
-    allowed: hasPage,
+    allowed: true,
     status: ctx.effectiveStatus,
     expired: false,
-    reason: hasPage ? undefined : "Digital review page is disabled on current plan.",
     context: ctx,
   };
 }

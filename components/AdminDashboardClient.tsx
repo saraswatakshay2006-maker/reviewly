@@ -46,6 +46,14 @@ export interface AdminSnapshot {
     trialOrgs: number;
     pausedOrPastDueOrgs: number;
     mrrInr: number;
+    arrInr?: number;
+    totalRevenueInr?: number;
+    monthlyPlansRevenueInr?: number;
+    annualPlansRevenueInr?: number;
+    activeMonthlyCount?: number;
+    activeAnnualCount?: number;
+    monthlyMrrInr?: number;
+    annualArrInr?: number;
     totalUsers: number;
     totalBusinesses: number;
     totalCards: number;
@@ -64,6 +72,7 @@ export interface AdminSnapshot {
       id: string;
       name: string;
       email: string;
+      phone?: string | null;
       role: Role;
       createdAt: string;
     }[];
@@ -91,6 +100,7 @@ export interface AdminSnapshot {
     id: string;
     email: string;
     name: string;
+    phone?: string | null;
     role: Role;
     organizationId: string;
     organizationName: string;
@@ -365,13 +375,37 @@ export default function AdminDashboardClient({
           </div>
 
           <div className="rounded-card bg-white border border-black/[0.09] p-5 shadow-panel">
-            <p className="text-xs font-medium text-ink-muted">Monthly Recurring Revenue</p>
+            <div className="flex items-center justify-between gap-1">
+              <p className="text-xs font-medium text-ink-muted">Revenue &amp; Run Rate</p>
+              <span className="text-[10px] font-semibold text-cobalt-700 bg-cobalt-50 px-2 py-0.5 rounded-full">
+                MRR: ₹{summary.mrrInr.toLocaleString("en-IN")}
+              </span>
+            </div>
             <p className="font-display text-2xl sm:text-3xl font-semibold text-cobalt-700 mt-1.5 tabular-nums">
-              ₹{summary.mrrInr.toLocaleString("en-IN")}
+              ₹{(summary.totalRevenueInr ?? summary.mrrInr).toLocaleString("en-IN")}
             </p>
-            <p className="text-xs text-ink-secondary mt-1">
-              Across active &amp; billing workspaces
-            </p>
+            <div className="mt-2 space-y-1 pt-2 border-t border-black/[0.06] text-[11px] text-ink-secondary tabular-nums">
+              <div className="flex justify-between">
+                <span>Monthly plans:</span>
+                <strong className="text-ink">
+                  ₹{(summary.monthlyPlansRevenueInr ?? summary.mrrInr).toLocaleString("en-IN")}
+                  {summary.activeMonthlyCount !== undefined ? ` (${summary.activeMonthlyCount} subs)` : ""}
+                </strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Yearly plans:</span>
+                <strong className="text-ink">
+                  ₹{(summary.annualPlansRevenueInr ?? 0).toLocaleString("en-IN")}
+                  {summary.activeAnnualCount !== undefined ? ` (${summary.activeAnnualCount} subs)` : ""}
+                </strong>
+              </div>
+              {summary.arrInr !== undefined && (
+                <div className="flex justify-between text-ink-muted">
+                  <span>Normalized ARR:</span>
+                  <span>₹{summary.arrInr.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="rounded-card bg-white border border-black/[0.09] p-5 shadow-panel">
@@ -855,7 +889,12 @@ function ClientOrganizationCard({
           </div>
           <p className="text-xs text-ink-muted truncate">
             Slug: <span className="font-mono">{org.slug}</span> · Owners:{" "}
-            {org.users.map((u) => `${u.name} (${u.email})`).join(", ") || "None"}
+            {org.users
+              .map(
+                (u) =>
+                  `${u.name} (${u.email}${u.phone ? ` · 📞 ${u.phone}` : ""})`
+              )
+              .join(", ") || "None"}
           </p>
         </div>
 
@@ -1129,6 +1168,11 @@ function UserRow({
       <td className="py-3 px-4">
         <p className="font-medium text-ink">{user.name}</p>
         <p className="text-[11px] text-ink-muted">{user.email}</p>
+        {user.phone && (
+          <p className="text-[11px] font-mono text-cobalt-700 font-medium mt-0.5">
+            📞 {user.phone}
+          </p>
+        )}
       </td>
       <td className="py-3 px-4 text-ink-secondary">{user.organizationName}</td>
       <td className="py-3 px-4">

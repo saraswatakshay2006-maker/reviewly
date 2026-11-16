@@ -34,6 +34,7 @@ export interface AdminSubscriptionView {
   businessName: string;
   ownerName: string;
   ownerEmail: string;
+  ownerPhone?: string | null;
   planId: string;
   planName: string;
   amountInr: number;
@@ -74,6 +75,13 @@ export interface AdminSubscriptionAnalytics {
   arrInr: number;
   monthlyRevenueInr: number;
   annualRevenueInr: number;
+  monthlyPlansRevenueInr?: number;
+  annualPlansRevenueInr?: number;
+  totalRevenueInr?: number;
+  activeMonthlyCount?: number;
+  activeAnnualCount?: number;
+  monthlyMrrInr?: number;
+  annualArrInr?: number;
   paymentSuccessRatePct: number;
   successfulTransactions: number;
   failedTransactions: number;
@@ -249,13 +257,39 @@ function AnalyticsPanel({
 }) {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          label="MRR"
-          value={`₹${analytics.mrrInr.toLocaleString("en-IN")}`}
-          sub={`ARR: ₹${analytics.arrInr.toLocaleString("en-IN")}`}
+          label="Total Revenue Collected"
+          value={`₹${(analytics.totalRevenueInr ?? (analytics.monthlyPlansRevenueInr ?? analytics.monthlyRevenueInr) + (analytics.annualPlansRevenueInr ?? 0)).toLocaleString("en-IN")}`}
+          sub="All-time verified payments"
           accent
         />
+        <MetricCard
+          label="Monthly Plans Revenue"
+          value={`₹${(analytics.monthlyPlansRevenueInr ?? analytics.monthlyRevenueInr).toLocaleString("en-IN")}`}
+          sub={
+            analytics.activeMonthlyCount !== undefined
+              ? `${analytics.activeMonthlyCount} active monthly subs · ₹${(analytics.monthlyMrrInr ?? analytics.mrrInr).toLocaleString("en-IN")}/mo`
+              : "Collected monthly plans"
+          }
+        />
+        <MetricCard
+          label="Yearly / Annual Revenue"
+          value={`₹${(analytics.annualPlansRevenueInr ?? 0).toLocaleString("en-IN")}`}
+          sub={
+            analytics.activeAnnualCount !== undefined
+              ? `${analytics.activeAnnualCount} active annual subs · ₹${(analytics.annualArrInr ?? 0).toLocaleString("en-IN")}/yr run-rate`
+              : "Collected annual plans"
+          }
+        />
+        <MetricCard
+          label="Normalized MRR / ARR"
+          value={`₹${analytics.mrrInr.toLocaleString("en-IN")}`}
+          sub={`ARR run-rate: ₹${analytics.arrInr.toLocaleString("en-IN")}`}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
           label="Collected This Month"
           value={`₹${analytics.monthlyRevenueInr.toLocaleString("en-IN")}`}
@@ -270,6 +304,11 @@ function AnalyticsPanel({
           label="Trial -> Paid Conversion"
           value={`${analytics.trialToPaidConversionPct}%`}
           sub={`Churn rate: ${analytics.churnRatePct}%`}
+        />
+        <MetricCard
+          label="Active Subscribers by Interval"
+          value={`${analytics.activeMonthlyCount ?? 0} Mo / ${analytics.activeAnnualCount ?? 0} Yr`}
+          sub={`Active paid workspaces: ${analytics.activeSubscriptions}`}
         />
       </div>
 
@@ -913,6 +952,7 @@ function SubscriptionsManagerPanel({
         s.organizationName.toLowerCase().includes(q) ||
         s.businessName.toLowerCase().includes(q) ||
         s.ownerEmail.toLowerCase().includes(q) ||
+        Boolean(s.ownerPhone && s.ownerPhone.toLowerCase().includes(q)) ||
         s.planName.toLowerCase().includes(q)
       );
     });
@@ -1012,6 +1052,11 @@ function SubscriptionsManagerPanel({
                         <p className="text-[11px] text-ink-muted truncate max-w-[190px]">
                           {s.ownerEmail}
                         </p>
+                        {s.ownerPhone && (
+                          <p className="text-[10px] font-mono text-cobalt-700 font-medium">
+                            📞 {s.ownerPhone}
+                          </p>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         <p className="font-medium text-ink">{s.planName}</p>
@@ -1249,7 +1294,7 @@ function SubscriptionActionPanel({
           </span>
         </div>
         <p className="text-[11px] text-ink-muted mt-0.5">
-          Plan: {sub.planName} · Owner: {sub.ownerEmail} · {sub.countdownLabel}
+          Plan: {sub.planName} · Owner: {sub.ownerName} ({sub.ownerEmail}{sub.ownerPhone ? ` · 📞 ${sub.ownerPhone}` : ""}) · {sub.countdownLabel}
         </p>
       </div>
 

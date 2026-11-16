@@ -197,6 +197,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  phone?: string | null;
   passwordHash: string;
   salt: string;
   role: Role;

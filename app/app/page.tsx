@@ -289,6 +289,17 @@ export default async function DashboardOverview({
         />
       ) : (
         <>
+          {locState.hasHiddenLocations && (
+            <div className="rounded-control border border-amber-200 bg-amber-50/90 px-4 py-2.5 text-xs text-amber-900 flex items-center justify-between gap-3">
+              <span>
+                Plan limit: Your workspace has {locState.totalLocations} locations configured, but your current {ctx?.plan.name} plan includes only {businesses.length} active location. Only your primary location is shown.
+              </span>
+              <Link href="/app/billing?tab=upgrade" className="font-semibold text-amber-800 underline shrink-0">
+                Upgrade plan
+              </Link>
+            </div>
+          )}
+
           <LocationSwitcher
             businesses={businesses}
             activeBusinessId={business.id}

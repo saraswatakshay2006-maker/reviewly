@@ -97,6 +97,25 @@ export default async function SettingsPage({
         )}
       </div>
 
+      {locState.hasHiddenLocations && (
+        <div className="rounded-card border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold text-amber-950">
+              Additional Locations Hidden Due to Plan Limit
+            </p>
+            <p className="mt-0.5 text-amber-800">
+              Your account has {locState.totalLocations} locations configured, but your current {ctx?.plan.name || "downgraded"} plan only includes {businesses.length} active location. Only your primary location ({active?.name}) is currently visible and active.
+            </p>
+          </div>
+          <Link
+            href="/app/billing?tab=upgrade"
+            className="inline-flex items-center rounded-control bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-1.5 text-xs font-semibold shrink-0"
+          >
+            Upgrade to view all locations
+          </Link>
+        </div>
+      )}
+
       {businesses.length > 0 && (
         <div className="rounded-panel bg-white border border-black/[0.08] px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
