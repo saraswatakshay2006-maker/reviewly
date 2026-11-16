@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const EDGE_TARGETS = [
+const BASE_EDGE_TARGETS = [
   "app/page.tsx",
   "app/api/ai-assist/route.ts",
   "app/api/auth/login/route.ts",
@@ -34,6 +34,10 @@ const EDGE_TARGETS = [
   "app/api/admin/coupons/route.ts",
   "app/api/admin/settings/route.ts",
   "app/api/admin/payments/route.ts",
+  "app/api/admin/standee/themes/route.ts",
+  "app/api/admin/standee/themes/[id]/route.ts",
+  "app/api/standee/[businessId]/route.ts",
+  "app/api/standee/[businessId]/reset/route.ts",
   "app/t/[cardId]/route.ts",
   "app/r/[slug]/page.tsx",
   "app/review/[slug]/page.tsx",
@@ -42,26 +46,55 @@ const EDGE_TARGETS = [
   "app/app/page.tsx",
   "app/app/billing/page.tsx",
   "app/app/cards/page.tsx",
+  "app/app/standee/page.tsx",
   "app/app/feedback/page.tsx",
   "app/app/team/page.tsx",
   "app/app/settings/page.tsx",
 ];
 
+// Helper to recursively discover all route.ts files in app/
+function findRoutesRecursively(dir) {
+  let results = [];
+  if (!fs.existsSync(dir)) return results;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results = results.concat(findRoutesRecursively(fullPath));
+    } else if (entry.name === "route.ts" || entry.name === "route.js") {
+      const rel = path.relative(process.cwd(), fullPath).replace(/\\/g, "/");
+      results.push(rel);
+    }
+  }
+  return results;
+}
+
+const discoveredRoutes = findRoutesRecursively(path.join(process.cwd(), "app"));
+const allTargets = Array.from(new Set([...BASE_EDGE_TARGETS, ...discoveredRoutes]));
+
 const mode = process.argv.includes("--restore") ? "restore" : "enable";
 const marker = 'export const runtime = "edge";';
 
-for (const rel of EDGE_TARGETS) {
+let touchedCount = 0;
+for (const rel of allTargets) {
   const abs = path.join(process.cwd(), rel);
+  if (!fs.existsSync(abs)) continue;
   let src = fs.readFileSync(abs, "utf8");
   if (mode === "enable") {
     if (!src.includes(marker)) {
       src = src.trimEnd() + `\n\n${marker}\n`;
       fs.writeFileSync(abs, src, "utf8");
+      touchedCount++;
     }
   } else {
-    src = src.replace(/\r?\n*export const runtime = "edge";\r?\n?/g, "\n").trimEnd() + "\n";
-    fs.writeFileSync(abs, src, "utf8");
+    if (src.includes(marker)) {
+      src = src.replace(/\r?\n*export const runtime = "edge";\r?\n?/g, "\n").trimEnd() + "\n";
+      fs.writeFileSync(abs, src, "utf8");
+      touchedCount++;
+    }
   }
 }
 
-console.log(`Cloudflare Pages edge runtime directives ${mode}d across ${EDGE_TARGETS.length} routes.`);
+console.log(
+  `Cloudflare Pages edge runtime directives ${mode}d across ${allTargets.length} routes (${touchedCount} modified).`
+);
