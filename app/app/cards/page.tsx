@@ -10,13 +10,14 @@ import {
 } from "@/lib/entitlements";
 import {
   getBusinessById,
+  getStandeeDesignForBusiness,
   listCardsForBusiness,
+  listStandeeThemes,
   resolveActiveBusinessForOrg,
 } from "@/lib/repo";
-import CardsStudioClient from "@/components/CardsStudioClient";
+import CardsHubClient, { type CardTab } from "@/components/CardsHubClient";
 import LocationSwitcher from "@/components/LocationSwitcher";
 import SubscriptionLockedGate from "@/components/SubscriptionLockedGate";
-import { ArrowUpRightIcon, SparklesIcon } from "@/components/Icons";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,13 +26,13 @@ export const fetchCache = "force-no-store";
 export default async function CardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ biz?: string }>;
+  searchParams: Promise<{ biz?: string; tab?: string }>;
 }) {
   noStore();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { biz: requestedBiz } = await searchParams;
+  const { biz: requestedBiz, tab: requestedTab } = await searchParams;
   await syncExpiredSubscriptions(user.organizationId);
   const [ctx, locState] = await Promise.all([
     getOrganizationEntitlements(user.organizationId),
@@ -46,14 +47,14 @@ export default async function CardsPage({
       <div className="space-y-6">
         <div className="no-print pb-5 border-b border-black/[0.08]">
           <h1 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
-            Cards &amp; QR studio
+            Cards &amp; Standees Studio
           </h1>
           <p className="text-sm text-ink-secondary mt-1">
-            Issue dynamic NFC card tokens and download or print your counter QR stand.
+            Design Smart NFC PVC Cards, Tabletop A6 Standees, and manage NFC tokens.
           </p>
         </div>
         <SubscriptionLockedGate
-          sectionName="Cards & QR Studio"
+          sectionName="Cards & Standees Studio"
           planName={ctx.plan.name}
           effectiveStatus={ctx.effectiveStatus}
           renewalDate={ctx.subscription.currentPeriodEnd}
@@ -68,7 +69,7 @@ export default async function CardsPage({
     return (
       <div className="rounded-card bg-white border border-black/[0.09] p-10 text-center max-w-lg mx-auto">
         <p className="text-sm font-medium text-ink">
-          Configure a business first to manage NFC cards and QR stands.
+          Configure a business first to manage NFC cards, review standees, and QR displays.
         </p>
         <Link
           href="/app/settings"
@@ -80,13 +81,17 @@ export default async function CardsPage({
     );
   }
 
-  const cardsPerBiz = await Promise.all(
-    businesses.map((b) => listCardsForBusiness(b.id))
-  );
+  const [cardsPerBiz, cards, standeeDesign, themes] = await Promise.all([
+    Promise.all(businesses.map((b) => listCardsForBusiness(b.id))),
+    listCardsForBusiness(business.id),
+    getStandeeDesignForBusiness(business.id),
+    listStandeeThemes(),
+  ]);
+
   const orgActiveCards = cardsPerBiz
     .flat()
     .filter((c) => c.status === "active").length;
-  const cards = await listCardsForBusiness(business.id);
+
   const hdrs = await headers();
   const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
   const proto =
@@ -95,16 +100,56 @@ export default async function CardsPage({
   const appUrl = (getEnv("NEXT_PUBLIC_APP_URL") || `${proto}://${host}`).replace(/\/$/, "");
 
   const maxCards = ctx?.limits.maxCards ?? 10;
+  const initialTab: CardTab =
+    requestedTab === "standee" || requestedTab === "tokens" || requestedTab === "card"
+      ? requestedTab
+      : "card";
+
+  // Safe non-null design fallback
+  const initialDesign = standeeDesign || {
+    id: `standee_${business.id}`,
+    businessId: business.id,
+    organizationId: business.organizationId,
+    themeId: themes[0]?.id || "forest-green-gold",
+    colors: themes[0]?.colors || {
+      primary: "#063F32",
+      secondary: "#12805A",
+      accent: "#D9A441",
+      background: "#FFFFFF",
+      text: "#17211D",
+    },
+    businessName: business.name,
+    tagline:
+      business.description ||
+      `${business.category ? business.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
+    logoUrl: business.logoUrl || "",
+    headline: "LOVE OUR SERVICE?",
+    mainHeadline: "SHARE YOUR EXPERIENCE",
+    supportingText:
+      "Your honest feedback helps us improve and serve you better.",
+    footerText: "THANK YOU!",
+    qrScanLabel: "SCAN",
+    qrScanInstruction: "Scan the QR code with your phone",
+    nfcTapLabel: "TAP",
+    nfcTapInstruction: "Tap your NFC-enabled phone here",
+    benefit1: "Share Your Experience",
+    benefit2: "Help Us Improve",
+    benefit3: "Support Our Growth",
+    bleedEnabled: false,
+    cropMarks: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 
   return (
     <div className="space-y-6">
       <div className="no-print pb-5 border-b border-black/[0.08] flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
-            Cards &amp; QR studio
+            Cards &amp; Standees Studio
           </h1>
           <p className="text-sm text-ink-secondary mt-1">
-            Issue dynamic NFC card tokens and download or print your counter QR stand.
+            Design Smart PVC Tap Cards, Tabletop A6 Standees, and issue physical NFC tokens.
           </p>
         </div>
         {ctx && (
@@ -117,35 +162,20 @@ export default async function CardsPage({
         )}
       </div>
 
-      <div className="rounded-xl border border-cobalt-200 bg-cobalt-50/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-        <div>
-          <p className="text-xs font-bold text-cobalt-950 flex items-center gap-1.5">
-            <SparklesIcon size={14} className="text-cobalt-600" />
-            <span className="rounded bg-cobalt-600 text-white text-[10px] px-1.5 py-0.5 uppercase tracking-wide">
-              New
-            </span>
-            <span>A6 Tabletop Review Standee Designer</span>
-          </p>
-          <p className="text-xs text-cobalt-800 mt-0.5">
-            Design and download vertical acrylic tabletop standees with side-by-side QR scan and NFC tap in curated color palettes.
-          </p>
-        </div>
-        <Link
-          href={`/app/standee?biz=${business.id}`}
-          className="inline-flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-control bg-cobalt-600 hover:bg-cobalt-700 text-white text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto"
-        >
-          <span>Open Standee Designer</span>
-          <ArrowUpRightIcon size={13} />
-        </Link>
-      </div>
-
       <LocationSwitcher
         businesses={businesses}
         activeBusinessId={business.id}
         basePath="/app/cards"
       />
 
-      <CardsStudioClient business={business} cards={cards} appUrl={appUrl} />
+      <CardsHubClient
+        business={business}
+        initialDesign={initialDesign}
+        themes={themes}
+        cards={cards}
+        appUrl={appUrl}
+        initialTab={initialTab}
+      />
     </div>
   );
 }

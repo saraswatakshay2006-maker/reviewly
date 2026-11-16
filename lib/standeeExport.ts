@@ -233,3 +233,64 @@ export function exportStandeeSvg(
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Exports standard CR80 Smart NFC Card (85.6mm × 53.98mm) as 300 DPI PNG.
+ */
+export async function exportCardPng(
+  svgElement: SVGSVGElement,
+  filename: string = "nfc-card"
+): Promise<void> {
+  const targetPxW = 1011;
+  const targetPxH = 638;
+
+  const canvas = await svgToCanvas(svgElement, targetPxW, targetPxH);
+
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
+
+/**
+ * Exports standard CR80 Smart NFC Card (85.6mm × 53.98mm) as print-ready PDF.
+ * If both front and back SVGs are provided, outputs a 2-page duplex print PDF.
+ */
+export async function exportCardPdf(
+  frontSvg: SVGSVGElement,
+  backSvg?: SVGSVGElement | null,
+  filename: string = "nfc-card-print"
+): Promise<void> {
+  const cardWidthMm = 85.6;
+  const cardHeightMm = 53.98;
+
+  const canvasFront = await svgToCanvas(frontSvg, 1011, 638);
+  const frontImgData = canvasFront.toDataURL("image/png", 1.0);
+
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: [cardWidthMm, cardHeightMm],
+    compress: true,
+  });
+
+  doc.addImage(frontImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+
+  if (backSvg) {
+    doc.addPage([cardWidthMm, cardHeightMm], "landscape");
+    const canvasBack = await svgToCanvas(backSvg, 1011, 638);
+    const backImgData = canvasBack.toDataURL("image/png", 1.0);
+    doc.addImage(backImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+  }
+
+  doc.save(`${filename}.pdf`);
+}
+
+

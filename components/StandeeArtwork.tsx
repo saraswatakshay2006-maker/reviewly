@@ -1020,3 +1020,4 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
     );
   }
 );
+
