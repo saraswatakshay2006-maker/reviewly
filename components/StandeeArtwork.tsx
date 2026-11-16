@@ -14,9 +14,17 @@ export interface StandeeArtworkProps {
 
 /**
  * Single Source of Truth Vector Artwork for the A6 Standee.
- * Rendered at 300 DPI native resolution:
- * Trim size: 1240 × 1748 px (105mm × 148mm)
- * Bleed size: 1311 × 1819 px (111mm × 154mm with 3mm bleed)
+ * Matches the physical tabletop standee design:
+ * - A6 Portrait dimensions: 105mm × 148mm
+ * - Native 300 DPI canvas: 1240 × 1748 px (trim)
+ * - 3mm bleed support: 1311 × 1819 px
+ * - Top & bottom swooping dynamic curved waves
+ * - "Loved Our Service?" + "Review Us" with radiant golden bursts
+ * - 5 golden decorative stars
+ * - Side-by-side soft mint QR Scan & NFC Tap panels with central "OR" separator
+ * - Hand holding phone tapping NFC target vector
+ * - 3 bottom value icons: Star, Heart, Growth Chart
+ * - Signature cursive "Thank You!" footer banner
  */
 export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
   function StandeeArtwork(
@@ -43,34 +51,35 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
       ? `-${bleedPx} -${bleedPx} ${trimWidth + bleedPx * 2} ${trimHeight + bleedPx * 2}`
       : `0 0 ${trimWidth} ${trimHeight}`;
 
-    // Compute initials fallback if logo is not provided
-    const getInitials = (name: string) => {
-      const parts = name.trim().split(/\s+/).filter(Boolean);
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
-      }
-      return name.slice(0, 2).toUpperCase() || "RV";
-    };
+    // Color mappings
+    const primary = colors.primary || "#063F32";
+    const secondary = colors.secondary || "#12805A";
+    const accent = colors.accent || "#D9A441";
+    // Lime accent curve matching the reference (calculated or fallback)
+    const limeAccent =
+      primary === "#063F32" || primary === "#0B4636"
+        ? "#8AC240"
+        : colors.accent || "#D9A441";
 
-    const initials = getInitials(design.businessName || "My Business");
-
-    // Dynamic font sizing for long business names
-    const nameLength = (design.businessName || "").length;
-    const nameFontSize =
-      nameLength > 28 ? 30 : nameLength > 20 ? 36 : nameLength > 14 ? 42 : 46;
-
-    // Helper for wrapping long supporting text into 2 balanced lines
+    const businessName = (design.businessName || "FITZONE GYM").toUpperCase();
+    const tagline = (
+      design.tagline || "FITNESS • TRAINING • WELLNESS"
+    ).toUpperCase();
+    const headline1 = design.headline || "Loved Our Service?";
+    const headline2 = design.mainHeadline || "Review Us";
     const supportingText =
       design.supportingText ||
-      "Your honest feedback helps us improve and serve you better.";
-    const midPoint = Math.floor(supportingText.length / 2);
-    let splitIdx = supportingText.lastIndexOf(" ", midPoint);
-    if (splitIdx === -1 || splitIdx < 15) {
-      splitIdx = supportingText.indexOf(" ", midPoint);
-    }
-    const supLine1 =
-      splitIdx > 0 ? supportingText.slice(0, splitIdx) : supportingText;
-    const supLine2 = splitIdx > 0 ? supportingText.slice(splitIdx + 1) : "";
+      "Your feedback helps us grow and serve you better!";
+    const footerText = design.footerText || "Thank You!";
+
+    const initials = businessName
+      ? businessName
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0])
+          .join("")
+      : "FZ";
 
     return (
       <svg
@@ -87,902 +96,735 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
         }}
       >
         <defs>
-          {/* Subtle drop shadows */}
-          <filter id="card-soft-shadow" x="-5%" y="-5%" width="110%" height="110%">
+          {/* Subtle drop shadow filters */}
+          <filter id="soft-card-shadow" x="-5%" y="-5%" width="110%" height="110%">
             <feDropShadow
               dx="0"
-              dy="4"
-              stdDeviation="8"
-              floodColor={colors.primary}
+              dy="6"
+              stdDeviation="12"
+              floodColor="#063F32"
               floodOpacity="0.08"
             />
           </filter>
           <filter id="pill-shadow" x="-10%" y="-15%" width="120%" height="130%">
             <feDropShadow
               dx="0"
-              dy="2"
-              stdDeviation="4"
+              dy="3"
+              stdDeviation="5"
               floodColor="#000000"
-              floodOpacity="0.15"
+              floodOpacity="0.18"
             />
           </filter>
-          <filter id="badge-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <filter id="or-badge-shadow" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow
               dx="0"
               dy="2"
-              stdDeviation="5"
-              floodColor={colors.accent}
-              floodOpacity="0.4"
+              stdDeviation="4"
+              floodColor="#000000"
+              floodOpacity="0.25"
             />
           </filter>
 
-          {/* Gradients */}
-          <linearGradient id="header-accent-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={colors.primary} stopOpacity="0.1" />
-            <stop offset="50%" stopColor={colors.accent} stopOpacity="1" />
-            <stop offset="100%" stopColor={colors.primary} stopOpacity="0.1" />
+          {/* Top wave gradient */}
+          <linearGradient id="top-wave-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={primary} />
+            <stop offset="70%" stopColor={primary} />
+            <stop offset="100%" stopColor={secondary} />
           </linearGradient>
 
-          <linearGradient id="gold-shimmer" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={colors.accent} />
-            <stop offset="50%" stopColor="#FFF8E7" />
-            <stop offset="100%" stopColor={colors.accent} />
+          {/* Bottom wave gradient */}
+          <linearGradient id="bottom-wave-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={secondary} />
+            <stop offset="40%" stopColor={primary} />
+            <stop offset="100%" stopColor={primary} />
           </linearGradient>
 
-          <radialGradient id="nfc-pulse" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={colors.accent} stopOpacity="0.25" />
-            <stop offset="70%" stopColor={colors.secondary} stopOpacity="0.08" />
-            <stop offset="100%" stopColor={colors.background} stopOpacity="0" />
-          </radialGradient>
-
-          {/* Clip path for circular logo */}
-          <clipPath id="logo-circle-clip">
-            <circle cx="620" cy="115" r="54" />
-          </clipPath>
+          {/* Soft mint panel background gradient */}
+          <linearGradient id="mint-panel-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#F4FAF7" />
+            <stop offset="100%" stopColor="#EBF5F0" />
+          </linearGradient>
         </defs>
 
-        {/* ----------------- BLEED BACKGROUND (IF ACTIVE) ----------------- */}
+        {/* ----------------- BLEED BACKGROUND (WHEN ACTIVE) ----------------- */}
         {showBleed && (
           <rect
             x={-bleedPx}
             y={-bleedPx}
             width={trimWidth + bleedPx * 2}
             height={trimHeight + bleedPx * 2}
-            fill={colors.background}
+            fill="#FFFFFF"
           />
         )}
 
         {/* ----------------- BASE CANVAS (TRIM) ----------------- */}
-        <rect
-          x="0"
-          y="0"
-          width={trimWidth}
-          height={trimHeight}
-          fill={colors.background}
-        />
-
-        {/* Luxury Outer Border / Frame */}
-        <rect
-          x="28"
-          y="28"
-          width={trimWidth - 56}
-          height={trimHeight - 56}
-          rx="24"
-          fill="none"
-          stroke={colors.primary}
-          strokeWidth="3.5"
-          opacity="0.85"
-        />
-        <rect
-          x="40"
-          y="40"
-          width={trimWidth - 80}
-          height={trimHeight - 80}
-          rx="18"
-          fill="none"
-          stroke={colors.accent}
-          strokeWidth="1.75"
-          opacity="0.8"
-        />
-
-        {/* Corner Corner Ornaments */}
-        {[
-          { x: 44, y: 44 },
-          { x: trimWidth - 44, y: 44 },
-          { x: 44, y: trimHeight - 44 },
-          { x: trimWidth - 44, y: trimHeight - 44 },
-        ].map((pt, i) => (
-          <circle
-            key={i}
-            cx={pt.x}
-            cy={pt.y}
-            r="4.5"
-            fill={colors.accent}
-          />
-        ))}
+        <rect x="0" y="0" width={trimWidth} height={trimHeight} fill="#FFFFFF" />
 
         {/* =================================================================== */}
-        {/* TOP SECTION — BUSINESS BRANDING                                    */}
+        {/* TOP SECTION — SWOOPING CURVED WAVE HEADER WITH BUSINESS BRANDING    */}
         {/* =================================================================== */}
-
-        {/* Top Header Arch / Accent Bar */}
-        <path
-          d="M 40 40 L 40 70 Q 620 95 1200 70 L 1200 40 Z"
-          fill={colors.primary}
-          opacity="0.06"
-        />
-
-        {/* Business Logo or Initials Monogram Badge */}
-        <g id="brand-logo-section">
-          {/* Outer glow ring */}
-          <circle
-            cx="620"
-            cy="115"
-            r="60"
-            fill="none"
-            stroke={colors.accent}
-            strokeWidth="2.5"
-            opacity="0.75"
-          />
-          <circle
-            cx="620"
-            cy="115"
-            r="54"
-            fill={colors.primary}
-            opacity="0.08"
+        <g id="top-wave-header">
+          {/* Layer 1: Lime/Accent accent wave curve */}
+          <path
+            d="M -10 -10 L 1250 -10 L 1250 250 C 980 340, 720 180, -10 270 Z"
+            fill={limeAccent}
+            opacity="0.95"
           />
 
-          {design.logoUrl ? (
-            <image
-              href={design.logoUrl}
-              x="566"
-              y="61"
-              width="108"
-              height="108"
-              clipPath="url(#logo-circle-clip)"
-              preserveAspectRatio="xMidYMid slice"
-            />
-          ) : (
-            <g>
-              <circle cx="620" cy="115" r="54" fill={colors.primary} />
-              <text
-                x="620"
-                y="126"
-                textAnchor="middle"
-                fill={colors.accent}
-                fontFamily="system-ui, -apple-system, sans-serif"
-                fontWeight="800"
-                fontSize="36"
-                letterSpacing="2"
-              >
-                {initials}
-              </text>
-            </g>
-          )}
-
-          {/* Inner metallic trim ring */}
-          <circle
-            cx="620"
-            cy="115"
-            r="54"
-            fill="none"
-            stroke={colors.accent}
-            strokeWidth="3"
+          {/* Layer 2: Main Dark Forest Green swooping wave */}
+          <path
+            d="M -10 -10 L 1250 -10 L 1250 220 C 980 305, 720 155, -10 240 Z"
+            fill="url(#top-wave-grad)"
           />
-        </g>
 
-        {/* Business Name */}
-        <text
-          x="620"
-          y="218"
-          textAnchor="middle"
-          fill={colors.primary}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontWeight="900"
-          fontSize={nameFontSize}
-          letterSpacing="2.5"
-        >
-          {(design.businessName || "BUSINESS NAME").toUpperCase()}
-        </text>
-
-        {/* Business Tagline */}
-        <text
-          x="620"
-          y="256"
-          textAnchor="middle"
-          fill={colors.secondary}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontWeight="700"
-          fontSize="17"
-          letterSpacing="3.5"
-          opacity="0.9"
-        >
-          {(
-            design.tagline || "FITNESS • TRAINING • WELLNESS"
-          ).toUpperCase()}
-        </text>
-
-        {/* Decorative Divider with Center Diamond */}
-        <g id="header-divider">
-          <line
-            x1="220"
-            y1="284"
-            x2="590"
-            y2="284"
-            stroke={colors.accent}
-            strokeWidth="1.5"
-            opacity="0.65"
-          />
-          <polygon
-            points="620,277 627,284 620,291 613,284"
-            fill={colors.accent}
-          />
-          <line
-            x1="650"
-            y1="284"
-            x2="1020"
-            y2="284"
-            stroke={colors.accent}
-            strokeWidth="1.5"
-            opacity="0.65"
-          />
-        </g>
-
-        {/* =================================================================== */}
-        {/* MIDDLE SECTION — REVIEW INVITATION                                 */}
-        {/* =================================================================== */}
-
-        {/* Pre-Headline: LOVE OUR SERVICE? */}
-        <text
-          x="620"
-          y="336"
-          textAnchor="middle"
-          fill={colors.accent}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontWeight="800"
-          fontSize="24"
-          letterSpacing="4"
-        >
-          {(design.headline || "LOVE OUR SERVICE?").toUpperCase()}
-        </text>
-
-        {/* Main Headline: SHARE YOUR EXPERIENCE */}
-        <text
-          x="620"
-          y="392"
-          textAnchor="middle"
-          fill={colors.primary}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontWeight="900"
-          fontSize="50"
-          letterSpacing="1.5"
-        >
-          {(design.mainHeadline || "SHARE YOUR EXPERIENCE").toUpperCase()}
-        </text>
-
-        {/* 5 Crisp Decorative Gold Stars */}
-        <g id="decorative-five-stars">
-          {[-2, -1, 0, 1, 2].map((offset) => {
-            const cx = 620 + offset * 56;
-            const cy = 440;
-            return (
-              <polygon
-                key={offset}
-                points={`
-                  ${cx},${cy - 19}
-                  ${cx + 5.8},${cy - 5.8}
-                  ${cx + 20},${cy - 5.8}
-                  ${cx + 9.5},${cy + 3.8}
-                  ${cx + 13.5},${cy + 17.5}
-                  ${cx},${cy + 8.5}
-                  ${cx - 13.5},${cy + 17.5}
-                  ${cx - 9.5},${cy + 3.8}
-                  ${cx - 20},${cy - 5.8}
-                  ${cx - 5.8},${cy - 5.8}
-                `}
-                fill={colors.accent}
-                stroke={colors.secondary}
-                strokeWidth="1"
-              />
-            );
-          })}
-        </g>
-
-        {/* Supporting Text */}
-        <text
-          x="620"
-          y="492"
-          textAnchor="middle"
-          fill={colors.text}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontWeight="500"
-          fontSize="22"
-          opacity="0.85"
-        >
-          {supLine1}
-        </text>
-        {supLine2 && (
-          <text
-            x="620"
-            y="522"
-            textAnchor="middle"
-            fill={colors.text}
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="500"
-            fontSize="22"
-            opacity="0.85"
-          >
-            {supLine2}
-          </text>
-        )}
-
-        {/* =================================================================== */}
-        {/* CENTRAL SECTION — SCAN AND TAP SIDE BY SIDE (CORE REQUIREMENT)    */}
-        {/* =================================================================== */}
-
-        {/* LEFT PANEL: QR SCAN */}
-        <g id="panel-qr-scan">
-          {/* Outer Box */}
-          <rect
-            x="70"
-            y="560"
-            width="495"
-            height="640"
-            rx="28"
+          {/* Subtle wave highlight curve */}
+          <path
+            d="M -10 -10 L 600 -10 C 450 120, 200 200, -10 220 Z"
             fill="#FFFFFF"
-            stroke={colors.primary}
-            strokeWidth="2.5"
-            filter="url(#card-soft-shadow)"
-          />
-          <rect
-            x="76"
-            y="566"
-            width="483"
-            height="628"
-            rx="24"
-            fill="none"
-            stroke={colors.accent}
-            strokeWidth="1"
-            opacity="0.5"
+            opacity="0.06"
           />
 
-          {/* Top Pill: SCAN with Mini QR Glyph */}
-          <rect
-            x="217"
-            y="584"
-            width="200"
-            height="50"
-            rx="25"
-            fill={colors.primary}
-            filter="url(#pill-shadow)"
-          />
-          <rect
-            x="220"
-            y="587"
-            width="194"
-            height="44"
-            rx="22"
-            fill="none"
-            stroke={colors.accent}
-            strokeWidth="1.5"
-            opacity="0.8"
-          />
-
-          {/* Mini QR Icon in Pill */}
-          <g transform="translate(240, 597) scale(0.95)">
-            <rect width="9" height="9" x="0" y="0" rx="1.5" fill={colors.accent} />
-            <rect width="9" height="9" x="15" y="0" rx="1.5" fill={colors.accent} />
-            <rect width="9" height="9" x="0" y="15" rx="1.5" fill={colors.accent} />
-            <rect width="5" height="5" x="17" y="17" rx="1" fill={colors.accent} />
+          {/* Logo / Monogram Icon in Top Wave */}
+          <g id="top-logo-group" transform="translate(620, 82)">
+            {design.logoUrl ? (
+              <image
+                href={design.logoUrl}
+                x="-40"
+                y="-40"
+                width="80"
+                height="80"
+                preserveAspectRatio="xMidYMid meet"
+              />
+            ) : (
+              /* Dumbbell / Fitness emblem fallback matching reference */
+              <g transform="scale(1.2)">
+                <rect x="-18" y="-3" width="36" height="6" rx="2" fill="#FFFFFF" />
+                {/* Dumbbell Left Weights */}
+                <rect x="-24" y="-12" width="6" height="24" rx="2" fill={limeAccent} />
+                <rect x="-30" y="-16" width="6" height="32" rx="2" fill="#FFFFFF" />
+                <circle cx="-27" cy="0" r="2" fill={primary} />
+                {/* Dumbbell Right Weights */}
+                <rect x="18" y="-12" width="6" height="24" rx="2" fill={limeAccent} />
+                <rect x="24" y="-16" width="6" height="32" rx="2" fill="#FFFFFF" />
+                <circle cx="27" cy="0" r="2" fill={primary} />
+              </g>
+            )}
           </g>
 
+          {/* Business Name inside Top Wave */}
           <text
-            x="328"
-            y="618"
+            x="620"
+            y="158"
             textAnchor="middle"
             fill="#FFFFFF"
             fontFamily="system-ui, -apple-system, sans-serif"
             fontWeight="900"
-            fontSize="22"
-            letterSpacing="3"
+            fontSize="46"
+            letterSpacing="2.5"
           >
-            {(design.qrScanLabel || "SCAN").toUpperCase()}
+            {businessName}
           </text>
 
-          {/* Pure White Container Behind QR for 100% Optical Scanning */}
-          <rect
-            x="132"
-            y="656"
-            width="370"
-            height="370"
-            rx="22"
+          {/* Tagline inside Top Wave */}
+          <text
+            x="620"
+            y="190"
+            textAnchor="middle"
             fill="#FFFFFF"
-            stroke="#E5E7EB"
-            strokeWidth="1.5"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            fontWeight="600"
+            fontSize="16"
+            letterSpacing="3.5"
+            opacity="0.9"
+          >
+            {tagline}
+          </text>
+        </g>
+
+        {/* =================================================================== */}
+        {/* MIDDLE SECTION — REVIEW INVITATION WITH RADIANT SPARKS & STARS      */}
+        {/* =================================================================== */}
+        <g id="review-invitation-section" transform="translate(620, 310)">
+          {/* Sub-headline: Loved Our Service? */}
+          <text
+            x="0"
+            y="0"
+            textAnchor="middle"
+            fill="#1A2E26"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            fontWeight="800"
+            fontSize="38"
+            letterSpacing="0.5"
+          >
+            {headline1}
+          </text>
+
+          {/* Main Huge Headline: Review Us with Radiant Bursts */}
+          <g transform="translate(0, 72)">
+            {/* Left Golden Radiant Sparks */}
+            <g transform="translate(-235, -20)" stroke="#F5A623" strokeWidth="4.5" strokeLinecap="round">
+              {/* Top ray */}
+              <line x1="-30" y1="-18" x2="-6" y2="-6" />
+              {/* Middle ray */}
+              <line x1="-38" y1="0" x2="-10" y2="0" strokeWidth="5" stroke="#FFB800" />
+              {/* Bottom ray */}
+              <line x1="-30" y1="18" x2="-6" y2="6" />
+            </g>
+
+            {/* "Review Us" text */}
+            <text
+              x="0"
+              y="18"
+              textAnchor="middle"
+              fill={primary}
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="900"
+              fontSize="82"
+              letterSpacing="1"
+            >
+              {headline2}
+            </text>
+
+            {/* Right Golden Radiant Sparks */}
+            <g transform="translate(235, -20)" stroke="#F5A623" strokeWidth="4.5" strokeLinecap="round">
+              {/* Top ray */}
+              <line x1="6" y1="-6" x2="30" y2="-18" />
+              {/* Middle ray */}
+              <line x1="10" y1="0" x2="38" y2="0" strokeWidth="5" stroke="#FFB800" />
+              {/* Bottom ray */}
+              <line x1="6" y1="6" x2="30" y2="18" />
+            </g>
+          </g>
+
+          {/* 5 Solid Golden Decorative Stars */}
+          <g id="decorative-five-stars" transform="translate(0, 150)">
+            {[-2, -1, 0, 1, 2].map((offset) => {
+              const cx = offset * 54;
+              const cy = 0;
+              return (
+                <polygon
+                  key={offset}
+                  points={`
+                    ${cx},${cy - 22}
+                    ${cx + 6.8},${cy - 6.8}
+                    ${cx + 23},${cy - 6.8}
+                    ${cx + 11},${cy + 4.5}
+                    ${cx + 15.5},${cy + 20.5}
+                    ${cx},${cy + 10}
+                    ${cx - 15.5},${cy + 20.5}
+                    ${cx - 11},${cy + 4.5}
+                    ${cx - 23},${cy - 6.8}
+                    ${cx - 6.8},${cy - 6.8}
+                  `}
+                  fill="#FFB800"
+                />
+              );
+            })}
+          </g>
+
+          {/* Supporting Text */}
+          <text
+            x="0"
+            y="205"
+            textAnchor="middle"
+            fill="#4A5568"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            fontWeight="600"
+            fontSize="23"
+            letterSpacing="0.3"
+          >
+            {supportingText}
+          </text>
+        </g>
+
+        {/* =================================================================== */}
+        {/* CENTRAL SECTION — SCAN AND TAP SIDE BY SIDE (EXACT TO REFERENCE)   */}
+        {/* =================================================================== */}
+
+        {/* LEFT PANEL: QR SCAN */}
+        <g id="panel-qr-scan" transform="translate(70, 580)">
+          {/* Pale Mint Container Box */}
+          <rect
+            x="0"
+            y="0"
+            width="495"
+            height="580"
+            rx="32"
+            fill="url(#mint-panel-grad)"
+            stroke="#D6EBE2"
+            strokeWidth="2"
+            filter="url(#soft-card-shadow)"
           />
+
+          {/* Crisp White Container Behind QR with Soft Shadow */}
+          <rect
+            x="52"
+            y="48"
+            width="390"
+            height="370"
+            rx="24"
+            fill="#FFFFFF"
+            filter="drop-shadow(0px 4px 12px rgba(0,0,0,0.06))"
+          />
+
+          {/* 4 Green Corner Viewfinder / Scanner Brackets */}
+          <g stroke={primary} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none">
+            {/* Top-Left */}
+            <path d="M 68 88 L 68 64 L 92 64" />
+            {/* Top-Right */}
+            <path d="M 402 64 L 426 64 L 426 88" />
+            {/* Bottom-Left */}
+            <path d="M 68 378 L 68 402 L 92 402" />
+            {/* Bottom-Right */}
+            <path d="M 402 402 L 426 402 L 426 378" />
+          </g>
 
           {/* Dynamic Real Scannable QR Code */}
           {qrDataUrl && (
             <image
               href={qrDataUrl}
-              x="147"
-              y="671"
-              width="340"
-              height="340"
+              x="72"
+              y="68"
+              width="350"
+              height="330"
               preserveAspectRatio="xMidYMid meet"
             />
           )}
 
-          {/* Instruction Text Below QR */}
-          <text
-            x="317"
-            y="1068"
-            textAnchor="middle"
-            fill={colors.primary}
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="800"
-            fontSize="21"
-            letterSpacing="0.5"
-          >
-            {design.qrScanInstruction || "Scan the QR code with your phone"}
-          </text>
+          {/* Center Brand Badge on QR Code */}
+          <circle cx="247.5" cy="233" r="28" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
+          {/* Mini Dumbbell / Monogram Logo inside QR */}
+          <g transform="translate(247.5, 233) scale(0.65)">
+            <rect x="-14" y="-2" width="28" height="4" rx="1" fill={primary} />
+            <rect x="-18" y="-9" width="4" height="18" rx="1" fill={primary} />
+            <rect x="-22" y="-12" width="4" height="24" rx="1" fill={primary} />
+            <rect x="14" y="-9" width="4" height="18" rx="1" fill={primary} />
+            <rect x="18" y="-12" width="4" height="24" rx="1" fill={primary} />
+          </g>
 
-          {/* Small Phone Camera Hint */}
-          <g transform="translate(317, 1114)">
+          {/* Solid Green Pill Button: [—] SCAN */}
+          <g transform="translate(137.5, 442)">
             <rect
-              x="-80"
-              y="-18"
-              width="160"
-              height="32"
-              rx="16"
-              fill={colors.primary}
-              opacity="0.08"
-            />
-            <circle cx="-55" cy="-2" r="6" fill={colors.secondary} />
-            <text
               x="0"
-              y="4"
+              y="0"
+              width="220"
+              height="54"
+              rx="27"
+              fill={primary}
+              filter="url(#pill-shadow)"
+            />
+            {/* Viewfinder scanner icon */}
+            <g transform="translate(32, 16)" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
+              <path d="M 0 6 L 0 0 L 6 0" />
+              <path d="M 18 0 L 24 0 L 24 6" />
+              <path d="M 0 16 L 0 22 L 6 22" />
+              <path d="M 18 22 L 24 22 L 24 16" />
+              <line x1="4" y1="11" x2="20" y2="11" strokeWidth="2" />
+            </g>
+            <text
+              x="132"
+              y="35"
               textAnchor="middle"
-              fill={colors.secondary}
+              fill="#FFFFFF"
               fontFamily="system-ui, -apple-system, sans-serif"
-              fontWeight="700"
-              fontSize="14"
-              letterSpacing="1"
+              fontWeight="900"
+              fontSize="24"
+              letterSpacing="2.5"
             >
-              CAMERA / QR APP
+              SCAN
             </text>
           </g>
+
+          {/* Instruction Text Below Pill */}
+          <text
+            x="247.5"
+            y="526"
+            textAnchor="middle"
+            fill="#1A202C"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            fontWeight="700"
+            fontSize="21"
+            letterSpacing="0.2"
+          >
+            Scan the QR code
+          </text>
+          <text
+            x="247.5"
+            y="552"
+            textAnchor="middle"
+            fill="#1A202C"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            fontWeight="700"
+            fontSize="21"
+            letterSpacing="0.2"
+          >
+            with your phone
+          </text>
         </g>
 
-        {/* CENTER DIVIDER: Small Circular "OR" Separator */}
+        {/* CENTER DIVIDER: Hairline with Circular "OR" Badge */}
         <g id="center-or-divider">
-          {/* Vertical hairline connector line */}
+          {/* Vertical hairline line */}
           <line
             x1="620"
-            y1="600"
+            y1="630"
             x2="620"
             y2="835"
-            stroke={colors.accent}
+            stroke="#CBD5E1"
             strokeWidth="2"
-            strokeDasharray="4 4"
-            opacity="0.8"
           />
 
-          {/* Center OR Badge */}
+          {/* Center Dark Green "OR" Circle */}
           <circle
             cx="620"
-            cy="880"
-            r="38"
-            fill={colors.primary}
-            stroke={colors.accent}
-            strokeWidth="3.5"
-            filter="url(#badge-glow)"
-          />
-          <circle
-            cx="620"
-            cy="880"
-            r="31"
-            fill="none"
-            stroke="#FFFFFF"
-            strokeWidth="1"
-            opacity="0.4"
+            cy="870"
+            r="35"
+            fill={primary}
+            filter="url(#or-badge-shadow)"
           />
           <text
             x="620"
-            y="888"
+            y="878"
             textAnchor="middle"
             fill="#FFFFFF"
             fontFamily="system-ui, -apple-system, sans-serif"
             fontWeight="900"
-            fontSize="21"
-            letterSpacing="1.5"
+            fontSize="20"
+            letterSpacing="1"
           >
             OR
           </text>
 
           <line
             x1="620"
-            y1="925"
+            y1="905"
             x2="620"
-            y2="1160"
-            stroke={colors.accent}
+            y2="1110"
+            stroke="#CBD5E1"
             strokeWidth="2"
-            strokeDasharray="4 4"
-            opacity="0.8"
           />
         </g>
 
         {/* RIGHT PANEL: NFC TAP */}
-        <g id="panel-nfc-tap">
-          {/* Outer Box */}
+        <g id="panel-nfc-tap" transform="translate(675, 580)">
+          {/* Pale Mint Container Box */}
           <rect
-            x="675"
-            y="560"
+            x="0"
+            y="0"
             width="495"
-            height="640"
-            rx="28"
-            fill="#FFFFFF"
-            stroke={colors.primary}
-            strokeWidth="2.5"
-            filter="url(#card-soft-shadow)"
-          />
-          <rect
-            x="681"
-            y="566"
-            width="483"
-            height="628"
-            rx="24"
-            fill="none"
-            stroke={colors.accent}
-            strokeWidth="1"
-            opacity="0.5"
+            height="580"
+            rx="32"
+            fill="url(#mint-panel-grad)"
+            stroke="#D6EBE2"
+            strokeWidth="2"
+            filter="url(#soft-card-shadow)"
           />
 
-          {/* Top Pill: TAP with Mini NFC Glyph */}
-          <rect
-            x="822"
-            y="584"
-            width="200"
-            height="50"
-            rx="25"
-            fill={colors.primary}
-            filter="url(#pill-shadow)"
-          />
-          <rect
-            x="825"
-            y="587"
-            width="194"
-            height="44"
-            rx="22"
-            fill="none"
-            stroke={colors.accent}
-            strokeWidth="1.5"
-            opacity="0.8"
-          />
-
-          {/* Mini NFC Contactless Wave in Pill */}
-          <g
-            transform="translate(850, 597) scale(0.95)"
-            stroke={colors.accent}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            fill="none"
-          >
-            <path d="M4 18 A 12 12 0 0 1 4 4" />
-            <path d="M9 16 A 8 8 0 0 1 9 6" />
-            <path d="M14 14 A 4 4 0 0 1 14 8" />
-          </g>
-
-          <text
-            x="933"
-            y="618"
-            textAnchor="middle"
-            fill="#FFFFFF"
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="900"
-            fontSize="22"
-            letterSpacing="3"
-          >
-            {(design.nfcTapLabel || "TAP").toUpperCase()}
-          </text>
-
-          {/* Central NFC Target Graphic Area */}
-          <g id="nfc-target-illustration" transform="translate(922.5, 840)">
-            {/* Background Radial Glow */}
-            <circle cx="0" cy="0" r="165" fill="url(#nfc-pulse)" />
-
-            {/* Glowing Concentric Radio Waves */}
+          {/* NFC Contactless Target Rings & Phone Tap Illustration */}
+          <g id="nfc-target-area" transform="translate(247.5, 230)">
+            {/* Outer Circular Ring */}
             <circle
               cx="0"
               cy="0"
-              r="150"
+              r="145"
               fill="none"
-              stroke={colors.accent}
-              strokeWidth="2"
-              strokeDasharray="6 6"
-              opacity="0.55"
-            />
-            <circle
-              cx="0"
-              cy="0"
-              r="120"
-              fill="none"
-              stroke={colors.secondary}
-              strokeWidth="2.5"
-              opacity="0.65"
-            />
-            <circle
-              cx="0"
-              cy="0"
-              r="90"
-              fill={colors.primary}
-              fillOpacity="0.05"
-              stroke={colors.accent}
-              strokeWidth="3"
+              stroke={primary}
+              strokeWidth="10"
+              opacity="0.95"
             />
 
-            {/* Smartphone Tapping Silhouette (Tilted at 12°) */}
-            <g transform="translate(0, 10) rotate(-12)">
-              {/* Phone Body */}
+            {/* Concentric Radiating NFC Waves (Left side of phone) */}
+            <g
+              transform="translate(-65, 0)"
+              stroke={primary}
+              strokeWidth="9"
+              strokeLinecap="round"
+              fill="none"
+            >
+              <path d="M -35 -50 A 65 65 0 0 0 -35 50" />
+              <path d="M -15 -35 A 45 45 0 0 0 -15 35" />
+            </g>
+
+            {/* Hand Holding Smartphone Vector (Matching Reference Photo) */}
+            <g transform="translate(30, -5) rotate(12)">
+              {/* Smartphone Body */}
               <rect
-                x="-52"
-                y="-90"
-                width="104"
-                height="175"
-                rx="18"
+                x="-42"
+                y="-75"
+                width="84"
+                height="145"
+                rx="14"
                 fill="#FFFFFF"
-                stroke={colors.primary}
+                stroke="#1A202C"
                 strokeWidth="4"
-                filter="url(#pill-shadow)"
+                filter="drop-shadow(0px 8px 16px rgba(0,0,0,0.12))"
               />
-              {/* Screen Inner Bezel */}
+              {/* Phone Screen Bezel */}
               <rect
-                x="-44"
-                y="-78"
-                width="88"
-                height="150"
-                rx="12"
-                fill={colors.primary}
-                fillOpacity="0.06"
+                x="-36"
+                y="-66"
+                width="72"
+                height="126"
+                rx="8"
+                fill="#F8FAFC"
               />
-              {/* Phone Camera Notch */}
-              <rect
-                x="-14"
-                y="-84"
-                width="28"
-                height="5"
-                rx="2.5"
-                fill={colors.primary}
-                opacity="0.7"
-              />
-              {/* Phone Home Bar */}
-              <line
-                x1="-18"
-                y1="64"
-                x2="18"
-                y2="64"
-                stroke={colors.primary}
-                strokeWidth="3"
+              {/* Phone Camera Dot */}
+              <circle cx="0" cy="-70" r="2.5" fill="#1A202C" />
+
+              {/* NFC Wave Symbol on Phone Screen */}
+              <circle cx="0" cy="-6" r="14" fill="none" stroke={primary} strokeWidth="2.5" />
+              <path
+                d="M -7 -6 L -7 6 M 7 -6 L 7 6 M -7 0 L 7 0"
+                stroke={primary}
+                strokeWidth="2"
                 strokeLinecap="round"
-                opacity="0.4"
               />
 
-              {/* NFC Contactless Waves Emanating from Top of Phone */}
-              <g
-                transform="translate(0, -96)"
-                stroke={colors.accent}
-                strokeLinecap="round"
-                fill="none"
-              >
-                <path
-                  d="M -36 -12 A 40 40 0 0 1 36 -12"
-                  strokeWidth="3.5"
-                  opacity="0.9"
-                />
-                <path
-                  d="M -24 -24 A 30 30 0 0 1 24 -24"
-                  strokeWidth="4"
-                  opacity="1"
-                />
-                <path
-                  d="M -12 -34 A 20 20 0 0 1 12 -34"
-                  strokeWidth="4.5"
-                  opacity="1"
-                />
-              </g>
-
-              {/* Official NFC Symbol inside phone screen */}
-              <g
-                transform="translate(0, -4) scale(1.3)"
-                stroke={colors.primary}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              >
-                <path d="M -10 12 L -10 -12 L 0 4 L 0 -12" />
-                <path d="M 0 4 A 7 7 0 0 0 8 12 L 10 12" />
+              {/* Hand Vector Gripping Phone */}
+              <g stroke="#1A202C" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="#FFFFFF">
+                {/* Thumb across bottom front */}
+                <path d="M 40 22 C 30 18, 10 18, -4 28 C -14 36, -8 44, 4 42 C 16 40, 30 38, 44 42" />
+                {/* Index finger wrapping behind */}
+                <path d="M 42 -15 C 55 -15, 64 -8, 62 4 C 60 16, 48 24, 42 22" />
+                {/* Outer hand palm & wrist */}
+                <path d="M 44 40 C 58 48, 70 65, 80 82" />
+                <path d="M 62 4 C 75 18, 88 45, 96 68" />
               </g>
             </g>
           </g>
 
-          {/* Instruction Text Below NFC */}
-          <text
-            x="922"
-            y="1068"
-            textAnchor="middle"
-            fill={colors.primary}
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="800"
-            fontSize="21"
-            letterSpacing="0.5"
-          >
-            {design.nfcTapInstruction || "Tap your NFC-enabled phone here"}
-          </text>
-
-          {/* Small Phone NFC Compatibility Hint */}
-          <g transform="translate(922, 1114)">
+          {/* Solid Green Pill Button: ))) TAP */}
+          <g transform="translate(137.5, 442)">
             <rect
-              x="-90"
-              y="-18"
-              width="180"
-              height="32"
-              rx="16"
-              fill={colors.primary}
-              opacity="0.08"
+              x="0"
+              y="0"
+              width="220"
+              height="54"
+              rx="27"
+              fill={primary}
+              filter="url(#pill-shadow)"
             />
-            <circle cx="-65" cy="-2" r="6" fill={colors.accent} />
-            <text
-              x="5"
-              y="4"
-              textAnchor="middle"
-              fill={colors.secondary}
-              fontFamily="system-ui, -apple-system, sans-serif"
-              fontWeight="700"
-              fontSize="14"
-              letterSpacing="1"
+            {/* NFC Waves Icon in Pill */}
+            <g
+              transform="translate(32, 17)"
+              stroke="#FFFFFF"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              fill="none"
             >
-              IPHONE &amp; ANDROID
+              <path d="M 2 18 A 12 12 0 0 1 2 4" />
+              <path d="M 7 15 A 8 8 0 0 1 7 7" />
+              <path d="M 12 12 A 4 4 0 0 1 12 10" />
+            </g>
+            <text
+              x="132"
+              y="35"
+              textAnchor="middle"
+              fill="#FFFFFF"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="900"
+              fontSize="24"
+              letterSpacing="2.5"
+            >
+              TAP
+            </text>
+          </g>
+
+          {/* Instruction Text Below Pill */}
+          <text
+            x="247.5"
+            y="526"
+            textAnchor="middle"
+            fill="#1A202C"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            fontWeight="700"
+            fontSize="21"
+            letterSpacing="0.2"
+          >
+            Tap your NFC
+          </text>
+          <text
+            x="247.5"
+            y="552"
+            textAnchor="middle"
+            fill="#1A202C"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            fontWeight="700"
+            fontSize="21"
+            letterSpacing="0.2"
+          >
+            enabled phone here
+          </text>
+        </g>
+
+        {/* =================================================================== */}
+        {/* BOTTOM SECTION — 3 BENEFITS & SIGNATURE SWOOPING "THANK YOU!" WAVE  */}
+        {/* =================================================================== */}
+
+        {/* 3 Benefits with Hairline Vertical Dividers */}
+        <g id="bottom-benefits" transform="translate(620, 1260)">
+          {/* Benefit 1: Star Outline — Share Your Experience */}
+          <g transform="translate(-360, 0)">
+            {/* Outline Star */}
+            <path
+              d="M 0 -22 L 6 -7 L 22 -6 L 10 5 L 14 20 L 0 11 L -14 20 L -10 5 L -22 -6 L -6 -7 Z"
+              fill="none"
+              stroke="#1A2E26"
+              strokeWidth="3.5"
+              strokeLinejoin="round"
+            />
+            <text
+              x="0"
+              y="45"
+              textAnchor="middle"
+              fill="#1A202C"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="800"
+              fontSize="22"
+            >
+              Share Your
+            </text>
+            <text
+              x="0"
+              y="72"
+              textAnchor="middle"
+              fill="#1A202C"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="800"
+              fontSize="22"
+            >
+              Experience
+            </text>
+          </g>
+
+          {/* Divider 1 */}
+          <line x1="-180" y1="-15" x2="-180" y2="75" stroke="#CBD5E1" strokeWidth="2" />
+
+          {/* Benefit 2: Heart Outline — Help Us Improve */}
+          <g transform="translate(0, 0)">
+            {/* Outline Heart */}
+            <path
+              d="M 0 16 C -18 2, -22 -14, -11 -20 C -4 -24, 0 -17, 0 -17 C 0 -17, 4 -24, 11 -20 C 22 -14, 18 2, 0 16 Z"
+              fill="none"
+              stroke="#1A2E26"
+              strokeWidth="3.5"
+              strokeLinejoin="round"
+            />
+            <text
+              x="0"
+              y="45"
+              textAnchor="middle"
+              fill="#1A202C"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="800"
+              fontSize="22"
+            >
+              Help Us
+            </text>
+            <text
+              x="0"
+              y="72"
+              textAnchor="middle"
+              fill="#1A202C"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="800"
+              fontSize="22"
+            >
+              Improve
+            </text>
+          </g>
+
+          {/* Divider 2 */}
+          <line x1="180" y1="-15" x2="180" y2="75" stroke="#CBD5E1" strokeWidth="2" />
+
+          {/* Benefit 3: Growth Bar Chart with Trending Arrow — Support Our Growth */}
+          <g transform="translate(360, 0)">
+            {/* Bar Chart Bars */}
+            <rect x="-18" y="4" width="8" height="14" rx="2" fill={limeAccent} />
+            <rect x="-6" y="-6" width="8" height="24" rx="2" fill={secondary} />
+            <rect x="6" y="-16" width="8" height="34" rx="2" fill={primary} />
+            {/* Upward Trending Arrow */}
+            <path
+              d="M -22 10 L 16 -18 M 8 -18 L 18 -18 L 18 -8"
+              stroke={primary}
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            <text
+              x="0"
+              y="45"
+              textAnchor="middle"
+              fill="#1A202C"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="800"
+              fontSize="22"
+            >
+              Support
+            </text>
+            <text
+              x="0"
+              y="72"
+              textAnchor="middle"
+              fill="#1A202C"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              fontWeight="800"
+              fontSize="22"
+            >
+              Our Growth
             </text>
           </g>
         </g>
 
-        {/* =================================================================== */}
-        {/* BOTTOM SECTION — BENEFITS & THANK YOU FOOTER                       */}
-        {/* =================================================================== */}
-
-        {/* Benefit 1: Share Experience */}
-        <g id="benefit-1" transform="translate(240, 1260)">
-          <circle
-            cx="0"
-            cy="0"
-            r="28"
-            fill={colors.primary}
-            fillOpacity="0.08"
-            stroke={colors.accent}
-            strokeWidth="2"
-          />
-          {/* Star Vector */}
-          <polygon
-            points="0,-12 3.5,-3.5 12,-3.5 5,2 7.5,10.5 0,5.5 -7.5,10.5 -5,2 -12,-3.5 -3.5,-3.5"
-            fill={colors.accent}
-          />
-          <text
-            x="0"
-            y="48"
-            textAnchor="middle"
-            fill={colors.text}
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="700"
-            fontSize="18"
-          >
-            {design.benefit1 || "Share Your Experience"}
-          </text>
-        </g>
-
-        {/* Benefit 2: Help Us Improve */}
-        <g id="benefit-2" transform="translate(620, 1260)">
-          <circle
-            cx="0"
-            cy="0"
-            r="28"
-            fill={colors.primary}
-            fillOpacity="0.08"
-            stroke={colors.accent}
-            strokeWidth="2"
-          />
-          {/* Heart / Thumbs up icon */}
+        {/* BOTTOM SWOOPING CURVED WAVE BANNER WITH "Thank You!" SCRIPT */}
+        <g id="bottom-wave-footer">
+          {/* Layer 1: Lime Accent Wave Line on top crest */}
           <path
-            d="M -7 -6 A 4.5 4.5 0 0 1 0 -2 A 4.5 4.5 0 0 1 7 -6 A 4.5 4.5 0 0 1 7 1 L 0 9 L -7 1 A 4.5 4.5 0 0 1 -7 -6 Z"
-            fill={colors.accent}
+            d="M -10 1620 C 250 1560, 500 1650, 850 1580 C 1020 1545, 1150 1575, 1250 1610 L 1250 1760 L -10 1760 Z"
+            fill={limeAccent}
+            opacity="0.95"
           />
-          <text
-            x="0"
-            y="48"
-            textAnchor="middle"
-            fill={colors.text}
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="700"
-            fontSize="18"
-          >
-            {design.benefit2 || "Help Us Improve"}
-          </text>
-        </g>
 
-        {/* Benefit 3: Support Our Growth */}
-        <g id="benefit-3" transform="translate(1000, 1260)">
-          <circle
-            cx="0"
-            cy="0"
-            r="28"
-            fill={colors.primary}
-            fillOpacity="0.08"
-            stroke={colors.accent}
-            strokeWidth="2"
-          />
-          {/* Growth Rocket / Trending Up */}
+          {/* Layer 2: Main Deep Forest Green Wave */}
           <path
-            d="M -8 7 L 3 -4 L 8 -4 L 8 1 L -3 12 Z M 3 -4 L 7 -8 L 8 -4 Z"
-            fill={colors.accent}
+            d="M -10 1635 C 250 1580, 500 1670, 850 1600 C 1020 1565, 1150 1595, 1250 1625 L 1250 1760 L -10 1760 Z"
+            fill="url(#bottom-wave-grad)"
           />
-          <text
-            x="0"
-            y="48"
-            textAnchor="middle"
-            fill={colors.text}
-            fontFamily="system-ui, -apple-system, sans-serif"
-            fontWeight="700"
-            fontSize="18"
-          >
-            {design.benefit3 || "Support Our Growth"}
-          </text>
+
+          {/* Layer 3: Secondary swooping accent curve */}
+          <path
+            d="M -10 1660 C 250 1620, 500 1700, 850 1640 C 1020 1610, 1150 1630, 1250 1650 L 1250 1760 L -10 1760 Z"
+            fill={primary}
+            opacity="0.5"
+          />
+
+          {/* "Thank You!" Cursive Script Vector Text */}
+          <g transform="translate(620, 1698)">
+            <text
+              x="0"
+              y="0"
+              textAnchor="middle"
+              fill="#FFFFFF"
+              fontFamily="'Brush Script MT', 'Dancing Script', 'Caveat', 'Segoe Script', cursive, sans-serif"
+              fontStyle="italic"
+              fontWeight="700"
+              fontSize="82"
+              letterSpacing="2"
+            >
+              {footerText}
+            </text>
+            {/* Signature Underline Flourish */}
+            <path
+              d="M -160 14 Q 0 28 160 14"
+              stroke={limeAccent}
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              fill="none"
+              opacity="0.85"
+            />
+          </g>
         </g>
-
-        {/* Elegant Footer Divider */}
-        <line
-          x1="120"
-          y1="1350"
-          x2="1120"
-          y2="1350"
-          stroke="url(#header-accent-grad)"
-          strokeWidth="2"
-          opacity="0.8"
-        />
-
-        {/* Branded Footer: THANK YOU! */}
-        <text
-          x="620"
-          y="1420"
-          textAnchor="middle"
-          fill={colors.primary}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontWeight="900"
-          fontSize="44"
-          letterSpacing="4"
-        >
-          {(design.footerText || "THANK YOU!").toUpperCase()}
-        </text>
-
-        {/* Subtle Decorative Leaves / Flairs beside THANK YOU! */}
-        <g stroke={colors.accent} strokeWidth="2" fill="none" opacity="0.8">
-          <path d="M 420 1408 Q 390 1400 370 1412 M 420 1408 Q 395 1416 380 1424" />
-          <path d="M 820 1408 Q 850 1400 870 1412 M 820 1408 Q 845 1416 860 1424" />
-        </g>
-
-        {/* Platform or Custom Branding Signature */}
-        <text
-          x="620"
-          y="1660"
-          textAnchor="middle"
-          fill={colors.text}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          fontWeight="600"
-          fontSize="15"
-          letterSpacing="2"
-          opacity="0.45"
-        >
-          POWERED BY REVIEWLY • VERIFIED SMART STAND
-        </text>
 
         {/* =================================================================== */}
         {/* OPTIONAL PRINTER CROP MARKS (WHEN BLEED IS ENABLED)                */}
@@ -1020,4 +862,3 @@ export const StandeeArtwork = forwardRef<SVGSVGElement, StandeeArtworkProps>(
     );
   }
 );
-

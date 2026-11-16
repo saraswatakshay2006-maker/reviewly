@@ -118,11 +118,11 @@ export default async function StandeePage({
       business.description ||
       `${business.category ? business.category.toUpperCase() : "PREMIUM"} • SERVICE • EXCELLENCE`,
     logoUrl: business.logoUrl || "",
-    headline: "LOVE OUR SERVICE?",
-    mainHeadline: "SHARE YOUR EXPERIENCE",
+    headline: "Loved Our Service?",
+    mainHeadline: "Review Us",
     supportingText:
-      "Your honest feedback helps us improve and serve you better.",
-    footerText: "THANK YOU!",
+      "Your feedback helps us grow and serve you better!",
+    footerText: "Thank You!",
     qrScanLabel: "SCAN",
     qrScanInstruction: "Scan the QR code with your phone",
     nfcTapLabel: "TAP",
