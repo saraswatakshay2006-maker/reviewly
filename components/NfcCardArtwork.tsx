@@ -2,11 +2,13 @@
 
 import React from "react";
 import type { StandeeColors } from "@/lib/types";
+import BusinessLogoEmblems from "./BusinessLogoEmblems";
 
 export interface NfcCardArtworkProps {
   businessName: string;
   tagline?: string;
   logoUrl?: string;
+  emblemType?: string;
   qrDataUrl: string;
   colors: StandeeColors;
   side: "front" | "back";
@@ -23,6 +25,7 @@ export default function NfcCardArtwork({
   businessName,
   tagline = "CUSTOMER EXPERIENCE",
   logoUrl,
+  emblemType,
   qrDataUrl,
   colors,
   side,
@@ -120,41 +123,18 @@ export default function NfcCardArtwork({
 
           {/* Top Bar: Business Logo + Business Name & NFC Symbol */}
           <g transform="translate(60, 56)">
-            {/* Logo or Monogram */}
-            {logoUrl ? (
-              <image
-                href={logoUrl}
-                x="0"
-                y="0"
-                width="72"
-                height="72"
-                preserveAspectRatio="xMidYMid meet"
+            {/* Logo or Monogram Vector Emblem */}
+            <g transform="translate(36, 36)">
+              <BusinessLogoEmblems
+                type={emblemType}
+                category={tagline}
+                businessName={businessName}
+                logoUrl={logoUrl}
+                primaryColor={primary}
+                accentColor={accent}
+                size={72}
               />
-            ) : (
-              <g>
-                <circle cx="36" cy="36" r="36" fill={accent} opacity="0.2" />
-                <circle
-                  cx="36"
-                  cy="36"
-                  r="34"
-                  fill="none"
-                  stroke={accent}
-                  strokeWidth="2.5"
-                />
-                <text
-                  x="36"
-                  y="45"
-                  textAnchor="middle"
-                  fill="#FFFFFF"
-                  fontFamily="system-ui, -apple-system, sans-serif"
-                  fontWeight="bold"
-                  fontSize="24"
-                  letterSpacing="1"
-                >
-                  {initials}
-                </text>
-              </g>
-            )}
+            </g>
 
             {/* Business Text */}
             <text
@@ -456,6 +436,21 @@ export default function NfcCardArtwork({
               preserveAspectRatio="xMidYMid meet"
             />
           )}
+
+          {/* Center Brand Badge on QR Code */}
+          <circle cx="170" cy="170" r="26" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
+          <g transform="translate(170, 170)">
+            <BusinessLogoEmblems
+              type={emblemType}
+              category={tagline}
+              businessName={businessName}
+              logoUrl={logoUrl}
+              primaryColor={primary}
+              accentColor={accent}
+              size={30}
+              isMini={true}
+            />
+          </g>
 
           {/* Under QR helper */}
           <rect

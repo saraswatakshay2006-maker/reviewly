@@ -26,6 +26,7 @@ import {
   SaveIcon,
   SparklesIcon,
 } from "./Icons";
+import { ALL_LOGO_EMBLEMS, inferEmblemType, type LogoEmblemType } from "./BusinessLogoEmblems";
 
 export interface StandeeDesignerClientProps {
   business: Business;
@@ -50,6 +51,8 @@ export default function StandeeDesignerClient({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<"pdf" | "png" | "svg" | null>(null);
+  const [emblemCategory, setEmblemCategory] = useState<string>("All");
+  const [emblemSearch, setEmblemSearch] = useState<string>("");
 
   // Hidden/rendered SVG ref for canvas rendering and PDF export
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -708,25 +711,72 @@ export default function StandeeDesignerClient({
 
                 {/* Vector Brand Emblem Selector */}
                 <div>
-                  <label className="block text-xs font-semibold text-ink mb-1">
-                    Or Choose Business Vector Emblem
-                  </label>
-                  <p className="text-[11px] text-ink-muted mb-2">
-                    Appears in the top wave banner and the center of your QR code:
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-ink">
+                      Business Logo & Vector Emblem
+                    </label>
+                    <span className="text-[10px] text-ink-muted">
+                      {design.logoUrl ? "Custom Upload Active" : "Vector Emblem Active"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-muted mb-2.5">
+                    Renders in high definition inside the top wave banner and the QR code center badge:
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+
+                  {/* Category Filter Pills */}
+                  <div className="flex flex-wrap gap-1 mb-2">
                     {[
-                      { id: "gym", label: "Gym & Fitness", icon: "🏋️‍♂️", desc: "Dumbbell & Weights" },
-                      { id: "salon", label: "Salon & Spa", icon: "✂️", desc: "Shears & Sparkle" },
-                      { id: "restaurant", label: "Dining & Cafe", icon: "🍽️", desc: "Chef & Plate" },
-                      { id: "healthcare", label: "Healthcare", icon: "🩺", desc: "Medical Cross" },
-                      { id: "automotive", label: "Automotive", icon: "🚗", desc: "Vehicle Front" },
-                      { id: "hotel", label: "Hotel & Stay", icon: "👑", desc: "Royal Crown" },
-                      { id: "retail", label: "Retail & Shop", icon: "🛍️", desc: "Shopping Bag" },
-                      { id: "crest", label: "Monogram Crest", icon: "🏛️", desc: "Initials Badge" },
-                    ].map((emblem) => {
+                      "All",
+                      "Universal Monograms",
+                      "Wellness & Health",
+                      "Food & Hospitality",
+                      "Services & Retail",
+                    ].map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setEmblemCategory(cat)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+                          emblemCategory === cat
+                            ? "bg-cobalt-600 text-white font-medium"
+                            : "bg-surface-subtle text-ink-secondary hover:bg-black/5"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="mb-2">
+                    <input
+                      type="text"
+                      value={emblemSearch}
+                      onChange={(e) => setEmblemSearch(e.target.value)}
+                      placeholder="Search industry emblems (e.g. dental, legal, coffee, crest)..."
+                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-black/15 bg-white text-ink placeholder:text-ink-muted focus:outline-cobalt-600"
+                    />
+                  </div>
+
+                  {/* Emblems Grid */}
+                  <div className="grid grid-cols-2 gap-1.5 max-h-[220px] overflow-y-auto pr-1">
+                    {ALL_LOGO_EMBLEMS.filter((e) => {
+                      const matchesCat =
+                        emblemCategory === "All" || e.category === emblemCategory;
+                      const q = emblemSearch.trim().toLowerCase();
+                      const matchesSearch =
+                        !q ||
+                        e.label.toLowerCase().includes(q) ||
+                        e.desc.toLowerCase().includes(q) ||
+                        e.id.toLowerCase().includes(q);
+                      return matchesCat && matchesSearch;
+                    }).map((emblem) => {
+                      const activeEmblemId =
+                        design.emblemType ||
+                        inferEmblemType(design.tagline, design.businessName);
                       const isSelected =
-                        (design.emblemType || "gym") === emblem.id && !design.logoUrl;
+                        activeEmblemId === emblem.id && !design.logoUrl;
+
                       return (
                         <button
                           key={emblem.id}
@@ -738,17 +788,19 @@ export default function StandeeDesignerClient({
                               logoUrl: "",
                             }))
                           }
-                          className={`text-left p-2.5 rounded-lg border transition-all ${
+                          className={`text-left p-2 rounded-lg border transition-all ${
                             isSelected
-                              ? "border-cobalt-600 bg-cobalt-50/60 text-cobalt-950 ring-2 ring-cobalt-600/20 font-semibold"
+                              ? "border-cobalt-600 bg-cobalt-50/70 text-cobalt-950 ring-2 ring-cobalt-600/20 font-semibold"
                               : "border-black/10 bg-white hover:bg-surface-subtle text-ink"
                           }`}
                         >
-                          <div className="flex items-center gap-1.5 text-xs font-medium">
-                            <span>{emblem.icon}</span>
-                            <span>{emblem.label}</span>
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="text-base">{emblem.icon}</span>
+                            <span className="truncate">{emblem.label}</span>
                           </div>
-                          <p className="text-[10px] text-ink-muted mt-0.5">{emblem.desc}</p>
+                          <p className="text-[10px] text-ink-muted mt-0.5 truncate">
+                            {emblem.desc}
+                          </p>
                         </button>
                       );
                     })}

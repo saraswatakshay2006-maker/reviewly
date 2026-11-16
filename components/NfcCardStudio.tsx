@@ -182,6 +182,7 @@ export default function NfcCardStudio({
                   businessName={business.name}
                   tagline={tagline}
                   logoUrl={business.logoUrl || undefined}
+                  emblemType={(business as any).standeeDesign?.emblemType}
                   qrDataUrl={qrDataUrl}
                   colors={colors}
                   side="front"
@@ -193,6 +194,7 @@ export default function NfcCardStudio({
                   businessName={business.name}
                   tagline={tagline}
                   logoUrl={business.logoUrl || undefined}
+                  emblemType={(business as any).standeeDesign?.emblemType}
                   qrDataUrl={qrDataUrl}
                   colors={colors}
                   side="back"
@@ -208,6 +210,7 @@ export default function NfcCardStudio({
                 businessName={business.name}
                 tagline={tagline}
                 logoUrl={business.logoUrl || undefined}
+                emblemType={(business as any).standeeDesign?.emblemType}
                 qrDataUrl={qrDataUrl}
                 colors={colors}
                 side="front"
@@ -218,6 +221,7 @@ export default function NfcCardStudio({
                 businessName={business.name}
                 tagline={tagline}
                 logoUrl={business.logoUrl || undefined}
+                emblemType={(business as any).standeeDesign?.emblemType}
                 qrDataUrl={qrDataUrl}
                 colors={colors}
                 side="back"
